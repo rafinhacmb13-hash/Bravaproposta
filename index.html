@@ -1030,9 +1030,7 @@
 </head>
 <body class="auth-locked bg-slate-100 text-slate-800 h-screen flex overflow-hidden">
 
-  <!-- =========================================================================
-       PORTAL DE ACESSO CORPORATIVO — FIREBASE AUTHENTICATION (E-MAIL / SENHA)
-       ========================================================================= -->
+
   <div id="auth-gate" role="dialog" aria-modal="true" aria-labelledby="auth-title">
     <div id="auth-card">
       <!-- Cabeçalho Institucional -->
@@ -1094,10 +1092,10 @@
 
 
 
-  <!-- BACKDROP MOBILE DO MENU LATERAL -->
+  
   <div id="mobile-shell-backdrop" onclick="PlatformHub.closeMobileSidebar()" class="hidden fixed inset-0 bg-slate-950/60 backdrop-blur-[1px] z-[85] lg:hidden"></div>
 
-  <!-- NAVEGAÇÃO LATERAL CORPORATIVA UNIFICADA -->
+
   <aside id="unified-sidebar" class="shrink-0 h-screen flex flex-col select-none z-40" aria-label="Navegação Principal da Plataforma">
     <!-- Identidade da Plataforma -->
     <div class="sb-brand-wrap px-3.5 py-3.5 border-b border-white/10 flex items-center justify-between gap-2">
@@ -1252,7 +1250,7 @@
   </aside>
 
 
-  <!-- ÁREA PRINCIPAL DE MÓDULOS -->
+
   <div id="app-workspace" class="flex-1 min-w-0 h-screen flex flex-col overflow-hidden relative">
 
     <!-- ===================================================================
@@ -3209,9 +3207,7 @@
   </div>
 
 
-  <!-- =========================================================================
-       CAMADA DE INTEGRAÇÃO E SINCRONIZAÇÃO REAL ENTRE MÓDULOS (PlatformHub)
-       ========================================================================= -->
+  
   <script>
     window.PlatformHub = (function() {
       const stateHub = {
@@ -3598,7 +3594,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
   </script>
 
 
-  <!-- ==================== SCRIPT MÓDULO 1: PROPOSTA DE LICITAÇÃO ==================== -->
+  
   <script>
 
     // =========================================================================
@@ -8099,7 +8095,6 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
 
   </script>
 
-  <!-- ==================== SCRIPT MÓDULO 2: AGENDA DE LICITAÇÕES ==================== -->
   <script>
 window.AgendaModule = (function() {
 
@@ -9947,7 +9942,7 @@ window.AgendaModule = (function() {
 
   </script>
 
-  <!-- ==================== SCRIPT MÓDULO 3: BUSCAR PRODUTOS & CATÁLOGO ==================== -->
+
   <script>
 window.ProdutosModule = (function() {
 
@@ -11217,9 +11212,7 @@ return {
 
   </script>
 
-  <!-- =========================================================================
-       GERENCIADOR DE AUTENTICAÇÃO INDIVIDUAL — FIREBASE AUTH (propostasbrava)
-       ========================================================================= -->
+  
   <script>
     window.AuthManager = (function() {
       let authApp = null;
