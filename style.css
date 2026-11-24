@@ -383,7 +383,7 @@ body {
         overflow: visible !important;
         background: #ffffff !important;
       }
-      header, footer, #auth-gate, #unified-sidebar, #mobile-shell-backdrop, #mobile-module-bar, #module-produtos, #module-agenda, #editor-panel, #toast, #pdf-settings-drawer, .a4-page-guide, #preview-panel > div:first-child {
+      header, footer, #auth-gate, #unified-sidebar, #mobile-shell-backdrop, #mobile-module-bar, #module-produtos, #module-agenda, #module-edital, #checkpointModal, #editor-panel, #toast, #pdf-settings-drawer, .a4-page-guide, #preview-panel > div:first-child {
         display: none !important;
       }
       #preview-panel {
@@ -1036,4 +1036,212 @@ body {
 #module-produtos .main-area { margin-left:0!important;padding-bottom:4.5rem }
 #module-produtos .sync-long { display:none }
 #module-produtos .sync-short { display:inline }
+}
+
+    /* ==================== CSS COMPLEMENTAR: MÓDULO EDITAL, BALÃO & CHECKPOINTS ==================== */
+    #module-edital .edital-topbar {
+      border-bottom: 2px solid var(--shell-accent);
+    }
+    #module-edital .edital-tab-btn {
+      color: #475569;
+      background: transparent;
+    }
+    #module-edital .edital-tab-btn:hover {
+      background: #f1f5f9;
+      color: #0f172a;
+    }
+    #module-edital .edital-tab-btn.is-active {
+      background: var(--shell-bg);
+      color: #ffffff;
+      box-shadow: 0 2px 8px rgba(15, 23, 42, 0.14);
+    }
+    #module-edital .ed-kw-chip {
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #f1f5f9;
+      color: #1e2f53;
+      border: 1px solid #cbd5e1;
+      transition: all .15s ease;
+    }
+    #module-edital .ed-kw-chip:hover {
+      background: var(--shell-bg);
+      color: #ffffff;
+      border-color: var(--shell-bg);
+    }
+    #module-edital mark.ed-hit-mark {
+      background: #fef08a;
+      color: #0f172a;
+      padding: 0 3px;
+      border-radius: 3px;
+      font-weight: 700;
+    }
+    #module-edital .ed-dropzone-active {
+      border-color: var(--shell-accent) !important;
+      background: rgba(31, 166, 218, 0.08) !important;
+    }
+    /* Balão interativo de Especificação Oficial no card de Produtos */
+    #module-produtos .spec-balloon-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+      transition: all .15s ease;
+      border: 1px solid #93c5fd;
+      background: #eff6ff;
+      color: #1e3a8a;
+    }
+    #module-produtos .spec-balloon-btn:hover {
+      background: #1d4ed8;
+      color: #ffffff;
+      border-color: #1d4ed8;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(29, 78, 216, 0.22);
+    }
+    #module-produtos .spec-balloon-btn.is-official {
+      background: #ecfdf5;
+      color: #065f46;
+      border-color: #6ee7b7;
+    }
+    #module-produtos .spec-balloon-btn.is-official:hover {
+      background: #059669;
+      color: #ffffff;
+      border-color: #059669;
+      box-shadow: 0 4px 10px rgba(5, 150, 105, 0.24);
+    }
+    #module-produtos .spec-balloon-btn.is-empty {
+      background: #f8fafc;
+      color: #475569;
+      border-color: #cbd5e1;
+      font-weight: 600;
+    }
+    #module-produtos .spec-balloon-btn.is-empty:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+      border-color: #94a3b8;
+    }
+    body.shell-theme-next #specBalloonHeader {
+      background-color: #0f172a !important;
+      border-bottom-color: #22c55e !important;
+    }
+    body.shell-theme-next #checkpointModal .bg-\[\#1e2f53\] {
+      background-color: #0f172a !important;
+      border-bottom-color: #22c55e !important;
+    }
+
+/* Acordeão de submenus na barra lateral */
+#unified-sidebar .sb-main-btn .sb-chevron { transform: rotate(-90deg); }
+#unified-sidebar .sb-main-btn.is-open .sb-chevron { transform: rotate(0deg); }
+
+/* =====================================================================
+   NOVA IDENTIDADE VISUAL — CENTRAL DE LICITAÇÕES
+   Paleta oficial extraída da marca:
+   Azul-Marinho Profundo: #0b1630 / #0f1d3d / #162a54
+   Dourado Institucional: #f0b429 / #ffe08a / #b8780a
+   Azul-Celeste:          #1fa6da
+   Verde-Progresso:       #7ed957
+   ===================================================================== */
+:root {
+  --brand-navy: #0b1630;
+  --brand-navy-mid: #13254a;
+  --brand-gold: #f0b429;
+  --brand-gold-soft: rgba(240, 180, 41, 0.16);
+  --brand-sky: #1fa6da;
+  --brand-green: #7ed957;
+  --shell-bg: #0f1d3d;
+  --shell-bg-deep: #091229;
+  --shell-accent: #f0b429;
+  --shell-accent-soft: rgba(240, 180, 41, 0.16);
+  --shell-border: rgba(240, 180, 41, 0.18);
+}
+
+body.shell-theme-next {
+  --shell-bg: #0b1630;
+  --shell-bg-deep: #070e20;
+  --shell-accent: #7ed957;
+  --shell-accent-soft: rgba(126, 217, 87, 0.16);
+  --shell-border: rgba(126, 217, 87, 0.22);
+}
+
+/* Barra assinatura tricolor da marca (Dourado + Azul-Celeste + Verde) */
+.brand-tricolor-bar {
+  background: linear-gradient(90deg, #f0b429 0%, #f0b429 58%, #1fa6da 58%, #1fa6da 84%, #7ed957 84%, #7ed957 100%);
+}
+
+/* Tela de Login com atmosfera premium da marca */
+#auth-gate {
+  background:
+    radial-gradient(circle at 18% 18%, rgba(240, 180, 41, 0.18), transparent 40%),
+    radial-gradient(circle at 82% 82%, rgba(31, 166, 218, 0.20), transparent 44%),
+    radial-gradient(circle at 80% 15%, rgba(126, 217, 87, 0.10), transparent 36%),
+    linear-gradient(135deg, #070f24 0%, #0f1d3d 55%, #09142c 100%) !important;
+}
+#auth-card {
+  border: 1px solid rgba(240, 180, 41, 0.28);
+  box-shadow: 0 28px 75px rgba(3, 8, 22, 0.62), 0 0 0 1px rgba(255, 255, 255, 0.08) !important;
+}
+#auth-submit-btn {
+  background: linear-gradient(135deg, #0f1d3d 0%, #1c3568 100%) !important;
+  border: 1px solid rgba(240, 180, 41, 0.35);
+}
+#auth-submit-btn:hover {
+  background: linear-gradient(135deg, #162a54 0%, #24427d 100%) !important;
+}
+
+/* Barra lateral unificada com acento dourado/celeste */
+#unified-sidebar {
+  background: linear-gradient(180deg, var(--shell-bg) 0%, var(--shell-bg-deep) 100%) !important;
+  border-right: 1px solid rgba(240, 180, 41, 0.16) !important;
+}
+#unified-sidebar .sb-main-btn.is-active {
+  background: linear-gradient(90deg, rgba(240, 180, 41, 0.18) 0%, rgba(31, 166, 218, 0.12) 100%) !important;
+  border-color: rgba(240, 180, 41, 0.32) !important;
+  box-shadow: inset 3px 0 0 var(--brand-gold) !important;
+}
+#unified-sidebar .sb-main-btn.is-active svg {
+  color: var(--brand-gold) !important;
+}
+#unified-sidebar .sb-sub-btn.is-active {
+  background: rgba(31, 166, 218, 0.18) !important;
+  color: #ffffff !important;
+  box-shadow: inset 2px 0 0 var(--brand-sky);
+}
+#unified-sidebar #sb-user-avatar {
+  background: rgba(240, 180, 41, 0.18) !important;
+  border-color: rgba(240, 180, 41, 0.55) !important;
+  color: #ffe08a !important;
+}
+
+/* Cabeçalhos dos módulos harmonizados com a nova identidade */
+#app-header {
+  background: linear-gradient(90deg, #0b1630 0%, #132650 100%) !important;
+  border-bottom: 2px solid #f0b429 !important;
+}
+body.shell-theme-next #app-header {
+  background: linear-gradient(90deg, #091224 0%, #0f1d3d 100%) !important;
+  border-bottom: 2px solid #7ed957 !important;
+}
+#module-agenda .workspace-topbar,
+#module-produtos header,
+#module-edital .edital-topbar {
+  border-bottom: 2px solid #f0b429 !important;
+}
+body.shell-theme-next #module-agenda .workspace-topbar,
+body.shell-theme-next #module-produtos header,
+body.shell-theme-next #module-edital .edital-topbar {
+  border-bottom: 2px solid #7ed957 !important;
+}
+
+/* Botões principais e modais harmonizados */
+#checkpointModal .bg-\[\#1e2f53\],
+#auth-access-modal .bg-\[\#1e2f53\],
+#auth-changepass-modal .bg-\[\#1e2f53\],
+#specBalloonHeader {
+  background: linear-gradient(90deg, #0b1630 0%, #162b56 100%) !important;
+  border-bottom: 2px solid #f0b429 !important;
 }

@@ -74,8 +74,31 @@ window.PlatformHub = (function() {
         }
       }
 
+      function setOpenSubmenu(mod) {
+        const valid = ['proposta', 'agenda', 'produtos', 'edital'];
+        valid.forEach(m => {
+          const sub = document.getElementById('sb-submenu-' + m);
+          const btn = document.getElementById('nav-mod-' + m);
+          const open = (m === mod);
+          if (sub) sub.classList.toggle('hidden', !open);
+          if (btn) btn.classList.toggle('is-open', open);
+        });
+      }
+
+      function onSidebarModuleClick(mod, defaultSubView) {
+        const sub = document.getElementById('sb-submenu-' + mod);
+        const btn = document.getElementById('nav-mod-' + mod);
+        if (stateHub.activeModule === mod && sub) {
+          const willOpen = sub.classList.contains('hidden');
+          sub.classList.toggle('hidden', !willOpen);
+          if (btn) btn.classList.toggle('is-open', willOpen);
+          return;
+        }
+        switchModule(mod, defaultSubView);
+      }
+
       function switchModule(mod, subView) {
-        const valid = ['proposta', 'agenda', 'produtos'];
+        const valid = ['proposta', 'agenda', 'produtos', 'edital'];
         if (!valid.includes(mod)) mod = 'proposta';
         stateHub.activeModule = mod;
 
@@ -90,6 +113,7 @@ window.PlatformHub = (function() {
           }
           if (navBtn) navBtn.classList.toggle('is-active', isTarget);
         });
+        setOpenSubmenu(mod);
 
         if (mod === 'proposta') {
           if (subView && window.PropostaBridge) window.PropostaBridge.switchTab(subView);
@@ -103,6 +127,10 @@ window.PlatformHub = (function() {
         } else if (mod === 'produtos') {
           if (window.ProdutosModule && subView) {
             window.ProdutosModule.showView(subView);
+          }
+        } else if (mod === 'edital') {
+          if (window.EditalModule) {
+            window.EditalModule.showView(subView || 'analise');
           }
         }
 
@@ -131,12 +159,17 @@ window.PlatformHub = (function() {
         });
       }
 
+      function highlightEditalView(viewName) {
+        ['analise', 'busca', 'itens', 'historico'].forEach(v => {
+          const el = document.getElementById('sb-edital-' + v);
+          if (el) el.classList.toggle('is-active', v === viewName);
+        });
+      }
+
       function syncShellTheme(companyId, companyData, themeObj) {
         const isNext = companyId === 'next';
         document.body.classList.toggle('shell-theme-next', isNext);
-        const logo = document.getElementById('shell-brand-logo');
         const sub = document.getElementById('shell-brand-sub');
-        if (logo && themeObj) logo.src = (companyData && companyData.logo) || themeObj.defaultLogo;
         if (sub && themeObj) sub.textContent = themeObj.shortName;
       }
 
@@ -155,6 +188,36 @@ window.PlatformHub = (function() {
         }
       }
 
+      const serverModes = { proposta: 'local', agenda: 'local', produtos: 'local' };
+
+      function refreshOverallServerStatus() {
+        const dot = document.getElementById('sb-server-dot');
+        const txt = document.getElementById('sb-server-txt');
+        if (!dot || !txt) return;
+        const modes = Object.values(serverModes);
+        if (!navigator.onLine || modes.every(m => m === 'offline')) {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-rose-400 shrink-0';
+          txt.textContent = 'OFFLINE (Local)';
+          txt.className = 'text-rose-300';
+        } else if (modes.some(m => m === 'saving')) {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0';
+          txt.textContent = 'Salvando...';
+          txt.className = 'text-amber-200';
+        } else if (modes.some(m => m === 'offline')) {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0';
+          txt.textContent = 'Parcial (ON)';
+          txt.className = 'text-amber-200';
+        } else if (modes.some(m => m === 'synced')) {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0';
+          txt.textContent = 'ONLINE';
+          txt.className = 'text-emerald-300';
+        } else {
+          dot.className = 'w-1.5 h-1.5 rounded-full bg-sky-400 shrink-0';
+          txt.textContent = 'Local';
+          txt.className = 'text-sky-200';
+        }
+      }
+
       function updateFirebaseStatus(which, mode, label) {
         const colors = {
           synced: 'bg-emerald-400',
@@ -162,7 +225,8 @@ window.PlatformHub = (function() {
           offline: 'bg-rose-400',
           local: 'bg-sky-400'
         };
-        const cls = 'w-1.5 h-1.5 rounded-full ' + (colors[mode] || 'bg-amber-400');
+        const cls = 'w-1.5 h-1.5 rounded-full shrink-0 ' + (colors[mode] || 'bg-amber-400');
+        if (which in serverModes) serverModes[which] = mode;
         if (which === 'proposta') {
           const d = document.getElementById('sb-fb-prop-dot');
           const t = document.getElementById('sb-fb-prop-txt');
@@ -179,7 +243,31 @@ window.PlatformHub = (function() {
           if (d) d.className = cls;
           if (t) t.textContent = label;
         }
+        refreshOverallServerStatus();
       }
+
+      // Monitoramento automático de rede + verificação periódica para evitar perda de dados
+      function verifyServerHealth() {
+        if (!navigator.onLine) {
+          updateFirebaseStatus('proposta', 'offline', 'Sem internet');
+          updateFirebaseStatus('agenda', 'offline', 'Sem internet');
+          updateFirebaseStatus('produtos', 'offline', 'Sem internet');
+          return;
+        }
+        refreshOverallServerStatus();
+        // Garante envio de eventuais alterações pendentes na nuvem
+        if (window.PropostaBridge && typeof window.PropostaBridge.flushCloudSaves === 'function') {
+          try { window.PropostaBridge.flushCloudSaves(false); } catch (e) {}
+        }
+      }
+      window.addEventListener('online', () => {
+        refreshOverallServerStatus();
+        setTimeout(verifyServerHealth, 1200);
+      });
+      window.addEventListener('offline', () => {
+        verifyServerHealth();
+      });
+      setInterval(verifyServerHealth, 30000);
 
       function updateLinkedAgendaBanner() {
         const bar = document.getElementById('prop-agenda-link-bar');
@@ -229,6 +317,7 @@ window.PlatformHub = (function() {
           window.PropostaBridge.switchCompanyProfile('brava', true);
         }
 
+        if (window.CheckpointManager) window.CheckpointManager.capture('proposta', 'Antes de carregar pregão da Agenda');
         const st = window.PropostaBridge.getState();
         st.bid.linkedAgendaUid = rec.uid;
         stateHub.linkedAgendaUid = rec.uid;
@@ -280,8 +369,11 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
         }
 
         const startNum = action === 'append' && hasRealExisting ? existingItems.length + 1 : 1;
+        if (window.CheckpointManager) window.CheckpointManager.capture('proposta', `Antes de receber ${itemsList.length} item(ns) na Proposta`);
         const converted = itemsList.map((it, idx) => {
-          const descFull = it.specs ? `${it.name} — ${it.specs}` : it.name;
+          const descFull = (it.fullSpec && String(it.fullSpec).trim())
+            ? String(it.fullSpec).trim()
+            : (it.specs ? `${it.name} — ${it.specs}` : it.name);
           return {
             id: window.PropostaBridge.generateId(),
             numero: String(startNum + idx),
@@ -399,7 +491,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
           }
           updateSidebarBadges();
           const hash = (window.location.hash || '').replace('#', '').toLowerCase();
-          if (hash === 'agenda' || hash === 'produtos' || hash === 'proposta') {
+          if (hash === 'agenda' || hash === 'produtos' || hash === 'proposta' || hash === 'edital') {
             switchModule(hash);
           }
         }, 60);
@@ -410,9 +502,11 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
         toggleSidebar,
         closeMobileSidebar,
         switchModule,
+        onSidebarModuleClick,
         highlightPropostaTab,
         highlightAgendaTab,
         highlightProdutosView,
+        highlightEditalView,
         syncShellTheme,
         updateSidebarBadges,
         updateFirebaseStatus,
@@ -1646,6 +1740,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
     function applyImportedData(action) {
       const parsed = importState.parsed;
       if (!parsed || !parsed.groups || parsed.groups.length === 0) return;
+      if (window.CheckpointManager) window.CheckpointManager.capture('proposta', `Antes de importar ${parsed.totalItems} item(ns) (${action === 'replace' ? 'Substituir' : 'Somar'})`);
 
       const clonedGroups = JSON.parse(JSON.stringify(parsed.groups));
 
@@ -1786,12 +1881,8 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
       const t = getActiveTheme();
       const c = state.company;
 
-      // 1. Título e Favicon da aba do navegador
-      document.title = `${t.shortName} — Gerador de Propostas Comerciais (Lei 14.133/2021)`;
-      const fav1 = document.getElementById('app-favicon');
-      const fav2 = document.getElementById('app-shortcut-icon');
-      if (fav1) fav1.href = t.favicon;
-      if (fav2) fav2.href = t.favicon;
+      // 1. Título e Favicon da aba do navegador (identidade geral da plataforma)
+      document.title = 'Central de Licitações — Propostas, Agenda & Catálogo';
 
       // 2. Cabeçalho superior (Azul Brava vs Grafite/Verde Next)
       const header = document.getElementById('app-header');
@@ -1903,6 +1994,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
 
       applyActiveCompanyTheme();
       populateFormFromState();
+      if (window.CheckpointManager) window.CheckpointManager.updateButtons('proposta');
       if (!silent) {
         const t = getActiveTheme();
         showToast(`Perfil ativo alterado para ${t.shortName} (${state.company.cnpj}).`);
@@ -2322,6 +2414,11 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
         localStorage.setItem(STORAGE_KEYS.DRAFTS, JSON.stringify(state.drafts));
       } catch (e) {
         showToast('Atenção: espaço de armazenamento local cheio. Tente usar uma imagem menor.');
+      }
+
+      // Checkpoint periódico automático anti-bug (a cada ~45s de edição real)
+      if (window.CheckpointManager) {
+        window.CheckpointManager.schedulePeriodic('proposta', 'Edição automática da Proposta');
       }
 
       // Sincronização automática no Firebase Firestore (gravando exclusivamente no perfil ativo!)
@@ -3021,6 +3118,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
     function applyReadequadaPaste(mode) {
       const pasted = importState.readequadaItems;
       if (!pasted || pasted.length === 0) return;
+      if (window.CheckpointManager) window.CheckpointManager.capture('proposta', `Antes de aplicar Proposta Readequada (${pasted.length} itens)`);
 
       const normalizeItemKey = v => String(v || '').trim().replace(/^0+(?=\d)/, '').toLowerCase();
 
@@ -4670,6 +4768,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
     function loadDraft(id) {
       const found = state.drafts.find(d => d.id === id);
       if (!found) return;
+      if (window.CheckpointManager) window.CheckpointManager.capture('proposta', `Antes de carregar rascunho "${found.title || 'Salvo'}"`);
       const targetCompany = found.companyId === 'next' ? 'next' : 'brava';
       const switched = targetCompany !== state.activeCompanyId;
 
@@ -4914,6 +5013,7 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
     function startNewBid() {
       const t = getActiveTheme();
       if (!confirm(`Limpar os campos da licitação e itens da ${t.shortName} para iniciar uma nova disputa? (Os dados cadastrais e logomarca da ${t.shortName} serão mantidos)`)) return;
+      if (window.CheckpointManager) window.CheckpointManager.capture('proposta', 'Antes de limpar para nova disputa');
       const prevMode = state.bid.modoDisputa;
       const prevLabel = state.bid.rotuloGrupo;
       const prevLines = state.bid.descMaxLines;
@@ -5014,6 +5114,23 @@ Clique em OK para SOMAR os ${itemsList.length} item(ns) do Lote aos itens atuais
           try { localStorage.setItem(STORAGE_KEYS.COLLAB_NAME, displayName); } catch (e) {}
         }
         updateCollaboratorUI();
+      },
+      captureBidSnapshot: () => ({
+        companyId: state.activeCompanyId,
+        bid: JSON.parse(JSON.stringify(state.bid))
+      }),
+      restoreBidSnapshot: (snap) => {
+        if (!snap || !snap.bid) return false;
+        const pid = snap.companyId === 'next' ? 'next' : (state.activeCompanyId === 'next' ? 'next' : 'brava');
+        state.bids[pid] = normalizeBid(JSON.parse(JSON.stringify(snap.bid)));
+        if (state.activeCompanyId !== pid) {
+          state.activeCompanyId = pid;
+        }
+        bindActivePointers();
+        saveToStorage();
+        applyActiveCompanyTheme();
+        populateFormFromState();
+        return true;
       }
     };
 
@@ -5863,6 +5980,7 @@ window.AgendaModule = (function() {
     function deleteCurrentBid() {
       const rec = state.records.find(r => r.uid === state.selectedUid);
       if (!rec) return;
+      if (window.CheckpointManager) window.CheckpointManager.capture('agenda', `Antes de excluir pregão ${rec.edital || rec.orgao}`);
       if (!confirm(`Remover o pregão "${rec.edital || 'S/N'} - ${displayOrgao(rec.orgao)}" da agenda local?`)) return;
       state.records = state.records.filter(r => r.uid !== state.selectedUid);
       state.meta.updatedAt = new Date().toISOString();
@@ -6103,9 +6221,16 @@ window.AgendaModule = (function() {
       const normHeaders = rawHeaders.map(normalizeHeader);
 
       const map = {};
+      // 1. Reconhecimento prioritário da estrutura oficial "Agenda Participação.xlsx" (Col A = 'a', Col B = '' vazia com Nº do Edital)
+      if (normHeaders[0] === 'a' && normHeaders[1] === '') {
+        map.id = 0;
+        map.edital = 1;
+      }
+
       normHeaders.forEach((h, idx) => {
+        if (!h || h.startsWith('verifica')) return;
         if (h === 'a' || h === 'id' || h === 'idpregao') map.id ??= idx;
-        else if (h.includes('edital') || h.includes('pregao') || h.includes('numero')) map.edital ??= idx;
+        else if ((h.includes('edital') || h.includes('pregao') || h.includes('numero')) && !h.includes('observa') && !h.includes('apos') && !h.includes('data')) map.edital ??= idx;
         else if (h === 'dia' || h.includes('data')) map.data ??= idx;
         else if (h.includes('horar') || h === 'hora') map.horario ??= idx;
         else if (h.includes('empresa') || h.includes('responsav')) map.empresa ??= idx;
@@ -6130,8 +6255,11 @@ window.AgendaModule = (function() {
         else if (h.includes('anotac')) map.notasCol ??= idx;
       });
 
-      if (map.edital === undefined && normHeaders[0] === 'a' && normHeaders[1] === '') {
-        map.edital = 1;
+      // Fallback extra: se ainda não mapeou edital e a coluna B (idx 1) estiver sem cabeçalho mas tiver números de edital (ex: 34/2026)
+      if (map.edital === undefined && normHeaders[1] === '') {
+        const sampleRows = rows.slice(hdrIdx + 1, hdrIdx + 25);
+        const editalLike = sampleRows.filter(r => r && r[1] && /\d+\s*[\/\-]\s*\d+/.test(String(r[1]))).length;
+        if (editalLike >= 2) map.edital = 1;
       }
 
       const oldNotesMap = new Map();
@@ -6203,6 +6331,7 @@ window.AgendaModule = (function() {
         return;
       }
 
+      if (window.CheckpointManager) window.CheckpointManager.capture('agenda', `Antes de importar planilha: ${sourceName}`);
       state.records = imported;
       state.meta = { source: sourceName, updatedAt: new Date().toISOString() };
       saveToStorage();
@@ -6244,6 +6373,7 @@ window.AgendaModule = (function() {
     }
 
     function restoreInitialData() {
+      if (window.CheckpointManager) window.CheckpointManager.capture('agenda', 'Antes de restaurar base original');
       if (!confirm('Deseja restaurar a base original auditada (924 pregões da Agenda Participação.xlsx)? As edições locais serão substituídas.')) return;
       state.records = JSON.parse(JSON.stringify(INITIAL_DATA));
       state.meta = { source: 'Agenda Participação.xlsx (Base Auditada)', updatedAt: new Date().toISOString() };
@@ -6859,7 +6989,22 @@ window.AgendaModule = (function() {
       sendSelectedToProposta, sendSelectedToProdutos,
       getRecordByUid, findRecordByBid, syncFromProposta, getStats,
       renderCalendar,
-      initFirebaseSync, syncNow, flushAgendaPendingQueue, disconnectFirebase
+      initFirebaseSync, syncNow, flushAgendaPendingQueue, disconnectFirebase,
+      captureSnapshot: () => ({
+        records: JSON.parse(JSON.stringify(state.records)),
+        meta: JSON.parse(JSON.stringify(state.meta))
+      }),
+      restoreSnapshot: (snap) => {
+        if (!snap || !Array.isArray(snap.records)) return false;
+        state.records = JSON.parse(JSON.stringify(snap.records));
+        if (snap.meta) state.meta = JSON.parse(JSON.stringify(snap.meta));
+        saveToStorage();
+        populateFilterDropdowns();
+        applyFilters();
+        if (window.PlatformHub) window.PlatformHub.updateSidebarBadges();
+        showToast(`Agenda restaurada com ${state.records.length} pregões!`, '↩');
+        return true;
+      }
     };
 
 })();
@@ -7313,6 +7458,131 @@ function getProductGomos(p){
 }
 
 // CLEAN, UNCLUTTERED PRODUCT CARD
+function resolveOfficialSpec(p){
+  if(!p)return {text:'',isOfficial:false,sourceProduct:null,isMatchedFromOther:false};
+  if(p.fullSpec&&String(p.fullSpec).trim()){
+    return {text:String(p.fullSpec),isOfficial:true,sourceProduct:p,isMatchedFromOther:false};
+  }
+  // Busca automática de correspondência em produtos cadastrados manualmente com Especificação Oficial
+  const pCode=norm(p.code),pName=norm(p.name),pBrand=norm(p.brand);
+  const manualCandidates=products.filter(x=>x.id!==p.id&&x.fullSpec&&String(x.fullSpec).trim());
+  if(manualCandidates.length){
+    let found=null;
+    if(pCode&&pCode.length>=2){
+      found=manualCandidates.find(x=>norm(x.code)===pCode);
+    }
+    if(!found&&pName){
+      found=manualCandidates.find(x=>norm(x.name)===pName);
+    }
+    if(!found&&pName.length>=6){
+      const pWords=pName.split(' ').filter(w=>w.length>=3);
+      if(pWords.length>=2){
+        let bestCand=null,bestRatio=0;
+        manualCandidates.forEach(x=>{
+          const xName=norm(x.name);
+          const sameBrand=!pBrand||!norm(x.brand)||norm(x.brand)===pBrand;
+          const hits=pWords.filter(w=>xName.includes(w)).length;
+          const ratio=hits/pWords.length;
+          if(ratio>=0.75&&sameBrand&&ratio>bestRatio){bestRatio=ratio;bestCand=x;}
+        });
+        found=bestCand;
+      }
+    }
+    if(found){
+      return {text:String(found.fullSpec),isOfficial:true,sourceProduct:found,isMatchedFromOther:true};
+    }
+  }
+  const fallback=String(p.specs||p.description||'').trim();
+  return {text:fallback,isOfficial:false,sourceProduct:p,isMatchedFromOther:false};
+}
+
+let activeBalloonProductId=null,activeBalloonOfferId=null,activeBalloonText='';
+function openSpecBalloonModal(pid,oid){
+  const p=products.find(x=>x.id===pid);
+  if(!p)return;
+  const o=(p.offers||[]).find(x=>x.id===oid)||bestOffer(p);
+  const info=resolveOfficialSpec(p);
+  activeBalloonProductId=p.id;
+  activeBalloonOfferId=o?.id||'';
+  activeBalloonText=info.text||'';
+
+  const badge=document.getElementById('specBalloonBadge');
+  const origin=document.getElementById('specBalloonOrigin');
+  const title=document.getElementById('specBalloonTitle');
+  const meta=document.getElementById('specBalloonMeta');
+  const hint=document.getElementById('specBalloonMatchHint');
+  const content=document.getElementById('specBalloonContent');
+  const chars=document.getElementById('specBalloonChars');
+
+  if(info.isOfficial){
+    badge.textContent='💬 Especificação Oficial Cadastrada';
+    badge.className='px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-500 text-white';
+    origin.textContent=info.isMatchedFromOther?'Encontrada automaticamente por correspondência manual':'Cadastrada manualmente neste produto';
+  }else{
+    badge.textContent='💬 Especificação do Catálogo';
+    badge.className='px-2 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-amber-500 text-white';
+    origin.textContent='Clique em "Editar Especificação Oficial" para cadastrar o texto fidedigno completo';
+  }
+  title.textContent=p.name;
+  meta.textContent=`${p.brand||'Sem marca'} · Cód. ${p.code||'—'} · ${o?.supplier||'Fornecedor não informado'} · ${money(o?.price||0)}`;
+
+  if(info.isMatchedFromOther&&info.sourceProduct){
+    hint.textContent=`✓ Correspondência automática detectada com o produto manual "${info.sourceProduct.name}" (Cód. ${info.sourceProduct.code||'—'}).`;
+    hint.classList.remove('hidden');
+  }else{
+    hint.classList.add('hidden');
+  }
+
+  if(activeBalloonText){
+    content.textContent=activeBalloonText;
+    content.classList.remove('italic','text-slate-400');
+    chars.textContent=`${activeBalloonText.length} caracteres`;
+  }else{
+    content.textContent='Nenhuma especificação completa cadastrada ainda para este produto. Clique em "Editar Especificação Oficial" abaixo para cadastrar.';
+    content.classList.add('italic','text-slate-400');
+    chars.textContent='0 caracteres';
+  }
+  document.getElementById('specBalloonModal').classList.remove('overlay-hidden');
+}
+
+document.getElementById('closeSpecBalloonBtn')?.addEventListener('click',()=>document.getElementById('specBalloonModal').classList.add('overlay-hidden'));
+document.getElementById('specBalloonModal')?.addEventListener('click',e=>{if(e.target.id==='specBalloonModal')document.getElementById('specBalloonModal').classList.add('overlay-hidden')});
+document.getElementById('specBalloonCopyBtn')?.addEventListener('click',()=>{
+  if(!activeBalloonText){toast('Sem texto de especificação para copiar.','error');return;}
+  navigator.clipboard?.writeText(activeBalloonText).then(()=>toast('Especificação completa copiada com 1 clique!','success')).catch(()=>{
+    const ta=document.createElement('textarea');ta.value=activeBalloonText;document.body.appendChild(ta);ta.select();document.execCommand('copy');ta.remove();toast('Especificação completa copiada!','success');
+  });
+});
+document.getElementById('specBalloonEditBtn')?.addEventListener('click',()=>{
+  const p=products.find(x=>x.id===activeBalloonProductId);
+  document.getElementById('specBalloonModal').classList.add('overlay-hidden');
+  if(p){
+    openManualModal(p);
+    setTimeout(()=>document.getElementById('mpFullSpec')?.focus(),80);
+  }
+});
+document.getElementById('specBalloonSendPropBtn')?.addEventListener('click',()=>{
+  const p=products.find(x=>x.id===activeBalloonProductId);
+  if(!p)return;
+  const o=(p.offers||[]).find(x=>x.id===activeBalloonOfferId)||bestOffer(p);
+  const mult=getBidMultiplier();
+  const unitBid=o?Math.round(Number(o.price)*mult*100)/100:0;
+  document.getElementById('specBalloonModal').classList.add('overlay-hidden');
+  if(window.PlatformHub){
+    window.PlatformHub.sendProdutosToProposta([{
+      name:p.name,
+      specs:p.specs||'',
+      fullSpec:activeBalloonText||'',
+      brand:o?.brand||p.brand||'',
+      code:o?.code||p.code||'',
+      unit:p.unit||'UN',
+      qty:1,
+      price:unitBid,
+      costPrice:o?Number(o.price):0
+    }], 'append');
+  }
+});
+
 function productCard(p,matchInfo=null){
   const best=bestOffer(p),all=(p.offers||[]).slice().sort((a,b)=>a.price-b.price),lowest=best?.price||0;
   const bidPrice=getBidPrice(lowest);
@@ -7324,6 +7594,7 @@ function productCard(p,matchInfo=null){
   const certs=getProductCertifications(p);
   const gomosLabel=getProductGomos(p);
   const penaltyReminder=getPenaltyReminder(p);
+  const specInfo=resolveOfficialSpec(p);
 
   return `<article class="product-card ${p.unavailable?'opacity-60 bg-slate-50':''}">
    ${matchInfo?`<div class="flex items-center justify-between gap-3 mb-2 pb-1.5 border-b border-slate-100">
@@ -7337,6 +7608,7 @@ function productCard(p,matchInfo=null){
       ${certs.map(c=>`<span class="badge-cert">${escapeHtml(c)}</span>`).join('')}
       ${gomosLabel?`<span class="tag tag-gray" title="Quantidade de gomos/painéis">⚽ ${escapeHtml(gomosLabel)}</span>`:''}
       ${p.homologated?'<span class="tag tag-green">🏆 Ganho</span>':''}
+      ${specInfo.isOfficial?`<span class="tag tag-green" title="${specInfo.isMatchedFromOther?'Especificação oficial encontrada por correspondência na base manual':'Especificação completa cadastrada manualmente'}">💬 Espec. Oficial${specInfo.isMatchedFromOther?' (Auto)':''}</span>`:''}
       ${p.favorite?'<span class="tag tag-amber">⭐ Favorito</span>':''}
       ${p.unavailable?'<span class="tag tag-red">🚫 Sem Estoque</span>':''}
       ${days>=60?`<span class="tag tag-amber" title="Desatualizado há ${days} dias">⚠ ${days}d</span>`:''}
@@ -7381,7 +7653,8 @@ function productCard(p,matchInfo=null){
     <div class="text-[10px] text-slate-400">
      ${all.length>1?`${all.length} ofertas a partir de ${money(lowest)}`:`Atualizado em ${fmtDate(best?.date)}`}
     </div>
-    <div class="flex items-center gap-1.5">
+    <div class="flex items-center gap-1.5 flex-wrap justify-end">
+     <button type="button" class="spec-balloon-btn ${specInfo.isOfficial?'is-official':(specInfo.text?'':'is-empty')}" data-open-spec-balloon="${escapeHtml(p.id)}" data-offer="${escapeHtml(best?.id||'')}" title="Abrir balão com Especificação Completa e Oficial">${specInfo.isOfficial?'💬 Espec. Oficial':(specInfo.text?'💬 Ver Espec.':'💬 + Espec.')}</button>
      <button type="button" class="btn btn-primary btn-sm px-3" data-add-quote="${escapeHtml(p.id)}" data-offer="${escapeHtml(best?.id||'')}">＋ Cotar</button>
      <button type="button" class="btn btn-secondary btn-sm px-2.5" data-toggle-menu="${escapeHtml(p.id)}" title="Mais ações">⋮</button>
     </div>
@@ -7507,7 +7780,7 @@ function requirementsMatch(r,description){
 
 function matchProduct(p,text){
   const qNorm=norm(text);
-  const fName=norm(p.name),fSpecs=norm([p.description,p.specs].join(' ')),fBrand=norm(p.brand),fCode=norm(p.code),fCat=norm([p.category,p.note,p.ncm].join(' '));
+  const fName=norm(p.name),fSpecs=norm([p.description,p.specs,p.fullSpec].join(' ')),fBrand=norm(p.brand),fCode=norm(p.code),fCat=norm([p.category,p.note,p.ncm].join(' '));
   const desc=[fName,fSpecs,fBrand,fCode,fCat].join(' ');
   const STOPWORDS=new Set(['de','da','do','das','dos','em','no','na','nos','nas','ou','ao','aos','as','os','um','uma','uns','umas','para','pra','com','sem','por','pelo','pela','que','como','mais','menos','entre','sobre','ate','seu','sua','seus','suas','este','esta','esse','essa','isto','isso','ser','ter','estar','deve','devendo','pode','podendo','indicado','indicada','indicados','indicadas','confeccionado','confeccionada','fabricado','fabricada','produzido','produzida','proporcionando','garantindo','oferecendo','possuindo','contendo','apresentando','desenvolvido','desenvolvida','ideal','alta','alto','qualidade','conforto','durabilidade','resistencia','acabamento','excelente','otimo','melhor','padrao','minimo','maximo','conforme','produto','produtos','item','itens','unidade','unidades','tipo','tipos','modelo','modelos','marca','uso','categoria','categorias','especificacao','especificacoes','tecnica','tecnicas','caracteristicas','geral','gerais']);
   const KEEP_SHORT=new Set(['pu','hd','pc','tv','lg','hp','wd','2u','5g','4k','a1','a2','a3','a4','m0','m1','m2','m3','m4','i3','i5','i7']);
@@ -7619,6 +7892,9 @@ document.addEventListener('click',async e=>{
     openCardMenuId=null;renderCatalog(true);renderMatch(false);
   }
 
+  const balloon=e.target.closest('[data-open-spec-balloon]');
+  if(balloon){openSpecBalloonModal(balloon.dataset.openSpecBalloon,balloon.dataset.offer);return}
+
   const add=e.target.closest('[data-add-quote]');
   if(add){addQuoteItem(add.dataset.addQuote,add.dataset.offer);return}
   const sendProp=e.target.closest('[data-send-proposta]');
@@ -7631,7 +7907,7 @@ document.addEventListener('click',async e=>{
       const unitBid=o?Math.round(Number(o.price)*mult*100)/100:0;
       if(window.PlatformHub){
         window.PlatformHub.sendProdutosToProposta([{
-          name:p.name, specs:p.specs||'', brand:o?.brand||p.brand||'', code:o?.code||p.code||'',
+          name:p.name, specs:p.specs||'', fullSpec:resolveOfficialSpec(p).isOfficial?resolveOfficialSpec(p).text:'', brand:o?.brand||p.brand||'', code:o?.code||p.code||'',
           unit:p.unit||'UN', qty:1, price:unitBid, costPrice:o?Number(o.price):0
         }], 'append');
       }
@@ -7716,6 +7992,7 @@ function openManualModal(p=null){
   document.getElementById('mpPrice').value=best?.price||'';
   document.getElementById('mpCategory').value=p?.category||'';
   document.getElementById('mpSpecs').value=p?.specs||'';
+  const _fsEl=document.getElementById('mpFullSpec');if(_fsEl)_fsEl.value=p?.fullSpec||'';
   document.getElementById('mpNote').value=p?.note||'';
   document.getElementById('mpDatasheet').value=p?.datasheetUrl||'';
   document.getElementById('mpHomologated').checked=!!p?.homologated;
@@ -7728,14 +8005,14 @@ function openManualModal(p=null){
 
 document.getElementById('manualProductForm').addEventListener('submit',e=>{
   e.preventDefault();
-  const id=document.getElementById('mpId').value.trim(),code=document.getElementById('mpCode').value.trim(),brand=document.getElementById('mpBrand').value.trim(),unit=document.getElementById('mpUnit').value.trim()||'UN',ncm=document.getElementById('mpNcm').value.trim(),name=document.getElementById('mpName').value.trim(),supplier=document.getElementById('mpSupplier').value.trim(),price=Number(document.getElementById('mpPrice').value)||0,category=document.getElementById('mpCategory').value.trim(),specs=document.getElementById('mpSpecs').value.trim(),note=document.getElementById('mpNote').value.trim(),datasheetUrl=document.getElementById('mpDatasheet').value.trim(),homologated=document.getElementById('mpHomologated').checked,favorite=document.getElementById('mpFavorite').checked,unavailable=document.getElementById('mpUnavailable').checked;
+  const id=document.getElementById('mpId').value.trim(),code=document.getElementById('mpCode').value.trim(),brand=document.getElementById('mpBrand').value.trim(),unit=document.getElementById('mpUnit').value.trim()||'UN',ncm=document.getElementById('mpNcm').value.trim(),name=document.getElementById('mpName').value.trim(),supplier=document.getElementById('mpSupplier').value.trim(),price=Number(document.getElementById('mpPrice').value)||0,category=document.getElementById('mpCategory').value.trim(),specs=document.getElementById('mpSpecs').value.trim(),fullSpec=(document.getElementById('mpFullSpec')?.value||'').replace(/\r\n/g,'\n'),note=document.getElementById('mpNote').value.trim(),datasheetUrl=document.getElementById('mpDatasheet').value.trim(),homologated=document.getElementById('mpHomologated').checked,favorite=document.getElementById('mpFavorite').checked,unavailable=document.getElementById('mpUnavailable').checked;
   if(!name||!supplier||price<=0){toast('Preencha nome, fornecedor e preço válido.','error');return}
   let p=id?products.find(x=>x.id===id):null;
   if(!p){
-    p={id:uid(),name,description:name,brand,code,ncm,unit,groupKey:norm(code||name).replace(/ /g,'-'),category:category||inferCategory({name,description:name,specs}),specs,note,datasheetUrl,homologated,favorite,unavailable,offers:[{id:uid(),supplier,price,date:today(),source:'TEXT',code,brand,datasheetUrl}]};
+    p={id:uid(),name,description:name,brand,code,ncm,unit,groupKey:norm(code||name).replace(/ /g,'-'),category:category||inferCategory({name,description:name,specs}),specs,fullSpec,isManualSpec:Boolean(fullSpec.trim()),manualSpecUpdatedAt:fullSpec.trim()?new Date().toISOString():'',note,datasheetUrl,homologated,favorite,unavailable,offers:[{id:uid(),supplier,price,date:today(),source:'TEXT',code,brand,datasheetUrl}]};
     products.unshift(p);
   }else{
-    p.name=name;p.description=name;p.brand=brand;p.code=code;p.ncm=ncm;p.unit=unit;p.category=category||inferCategory({name,description:name,specs});p.specs=specs;p.note=note;p.datasheetUrl=datasheetUrl;p.homologated=homologated;p.favorite=favorite;p.unavailable=unavailable;
+    p.name=name;p.description=name;p.brand=brand;p.code=code;p.ncm=ncm;p.unit=unit;p.category=category||inferCategory({name,description:name,specs});p.specs=specs;p.fullSpec=fullSpec;p.isManualSpec=Boolean(fullSpec.trim());if(fullSpec.trim())p.manualSpecUpdatedAt=new Date().toISOString();p.note=note;p.datasheetUrl=datasheetUrl;p.homologated=homologated;p.favorite=favorite;p.unavailable=unavailable;
     let off=(p.offers||[]).find(o=>norm(o.supplier)===norm(supplier))||p.offers?.[0];
     if(off){if(Number(off.price)!==price){off.previousPrice=Number(off.price);off.previousDate=off.date||today()}off.supplier=supplier;off.price=price;off.date=today();off.code=code;off.brand=brand;off.datasheetUrl=datasheetUrl}
     else{p.offers=[{id:uid(),supplier,price,date:today(),source:'TEXT',code,brand,datasheetUrl}]}
@@ -7895,6 +8172,7 @@ function findProductForRow(r){const code=norm(r.code),desc=norm(r.description),s
 
 function mergeAuditRows(){
   if(!stagedRows.length)return;
+  if(window.CheckpointManager)window.CheckpointManager.capture('produtos',`Antes de importar ${stagedRows.length} item(ns) (${currentAuditFile})`);
   const defaultSupplier=document.getElementById('auditSupplier').value.trim();let saved=0,updated=0,invalid=0;const changed=new Map();
   stagedRows.forEach(r=>{
     const supplier=String(r.supplier||defaultSupplier||'').trim(),price=Number(r.price);
@@ -7926,7 +8204,7 @@ document.getElementById('exportBackupBtn').addEventListener('click',()=>download
 document.getElementById('exportCatalogExcelBtn').addEventListener('click',()=>{if(!window.XLSX)return;const rows=products.flatMap(p=>(p.offers||[]).map(o=>({'Produto':p.name,'Descrição':p.description,'Especificações':p.specs||'','Categoria':p.category||'','Código':p.code||o.code||'','NCM':p.ncm||'','Marca':p.brand||o.brand||'','Fornecedor':o.supplier||'','Preço':Number(o.price)||0,'Data':o.date||''})));const ws=XLSX.utils.json_to_sheet(rows);const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,ws,'Catalogo');XLSX.writeFile(wb,`cotacao_base_${today()}.xlsx`);toast('Excel exportado!','success')});
 document.getElementById('exportCatalogCsvBtn').addEventListener('click',()=>{const header=['Codigo','Produto','Marca','Categoria','Fornecedor','Unidade','Preco','Estoque'];const lines=products.flatMap(p=>(p.offers||[]).map(o=>[p.code||'',p.name||'',p.brand||'',p.category||'',o.supplier||'',p.unit||'UN',String(Number(o.price||0).toFixed(2)).replace('.',','),p.unavailable?'Indisponivel':'Disponivel'].map(v=>`"${String(v).replace(/"/g,'""')}"`).join(';')));downloadBlob('\ufeff'+[header.join(';'),...lines].join('\n'),`catalogo_erp_${today()}.csv`,'text/csv;charset=utf-8');toast('CSV exportado!','success')});
 document.getElementById('importBackupBtn').addEventListener('click',()=>document.getElementById('backupFileInput').click());
-document.getElementById('backupFileInput').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());const arr=Array.isArray(obj)?obj:obj.products;if(!Array.isArray(arr))throw new Error('JSON inválido.');if(!(await showAppDialog({title:'Restaurar backup',message:`Substituir catálogo local por ${arr.length} produtos?`})))return;products=arr;saveLocal();renderCatalog();renderMatch(false);toast('Backup restaurado!','success')}catch(err){toast(err.message,'error')}e.target.value=''});
+document.getElementById('backupFileInput').addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;try{const obj=JSON.parse(await f.text());const arr=Array.isArray(obj)?obj:obj.products;if(!Array.isArray(arr))throw new Error('JSON inválido.');if(!(await showAppDialog({title:'Restaurar backup',message:`Substituir catálogo local por ${arr.length} produtos?`})))return;if(window.CheckpointManager)window.CheckpointManager.capture('produtos',`Antes de restaurar backup JSON (${arr.length} produtos)`);products=arr;saveLocal();renderCatalog();renderMatch(false);toast('Backup restaurado!','success')}catch(err){toast(err.message,'error')}e.target.value=''});
 
 function renderHistory(){const all=products.flatMap(p=>(p.offers||[]).filter(o=>o.previousPrice!=null).map(o=>({p,o,variation:priceChange(o)})));document.getElementById('historyDown').textContent=all.filter(x=>x.variation<0).length;document.getElementById('historyUp').textContent=all.filter(x=>x.variation>0).length;document.getElementById('historyTotal').textContent=all.length;document.getElementById('historyBody').innerHTML=all.sort((a,b)=>(b.o.date||'').localeCompare(a.o.date||'')).map(({p,o,variation})=>`<tr><td><b>${escapeHtml(p.name)}</b></td><td>${escapeHtml(o.supplier)}</td><td>${money(o.previousPrice)}</td><td><b>${money(o.price)}</b></td><td><b class="${variation<0?'price-down':'price-up'}">${variation<0?'↓':'↑'} ${pct(variation)}</b></td><td>${fmtDate(o.date)}</td></tr>`).join('')||'<tr><td colspan="6" class="text-center text-slate-400 py-8">Ainda não há alterações registradas.</td></tr>'}
 
@@ -7971,7 +8249,7 @@ async function fetchTeamProducts(showMsg=true){
     const remote=[];snap.forEach(d=>{const data=d.data();if(data&&data.id)remote.push(data)});
     if(remote.length){
       const remoteMap=new Map(remote.map(p=>[p.id,p])),seedMap=new Map(seedProducts.map(p=>[p.id,p])),merged=[],used=new Set();
-      seedProducts.forEach(sp=>{used.add(sp.id);if(remoteMap.has(sp.id)){const rp=remoteMap.get(sp.id),copy=structuredCloneSafe(sp);copy.homologated=!!rp.homologated;copy.favorite=!!rp.favorite;copy.unavailable=!!rp.unavailable;if(rp.note)copy.note=rp.note;if(rp.datasheetUrl)copy.datasheetUrl=rp.datasheetUrl;merged.push(copy)}else{merged.push(structuredCloneSafe(sp))}});
+      seedProducts.forEach(sp=>{used.add(sp.id);if(remoteMap.has(sp.id)){const rp=remoteMap.get(sp.id),copy=structuredCloneSafe(sp);copy.homologated=!!rp.homologated;copy.favorite=!!rp.favorite;copy.unavailable=!!rp.unavailable;if(rp.note)copy.note=rp.note;if(rp.datasheetUrl)copy.datasheetUrl=rp.datasheetUrl;if(rp.fullSpec){copy.fullSpec=rp.fullSpec;copy.isManualSpec=true;copy.manualSpecUpdatedAt=rp.manualSpecUpdatedAt||'';}merged.push(copy)}else{merged.push(structuredCloneSafe(sp))}});
       remote.forEach(rp=>{if(!used.has(rp.id)&&!seedMap.has(rp.id))merged.push(rp)});
       products=merged;saveLocal();
     }
@@ -8103,6 +8381,7 @@ document.getElementById('sendQuoteToPropostaBtn')?.addEventListener('click',()=>
     return {
       name:q.name,
       specs:prodObj?.specs||'',
+      fullSpec:prodObj&&resolveOfficialSpec(prodObj).isOfficial?resolveOfficialSpec(prodObj).text:'',
       brand:q.brand||prodObj?.brand||'',
       code:q.code||prodObj?.code||'',
       unit:q.unit||'UN',
@@ -8128,7 +8407,23 @@ return {
     renderMatch(true);
   },
   getStats: ()=>({ products: products.length, quote: quote.length, syncState }),
-  syncAfterAuth: ()=>{ if(getFirebaseConfig()) fetchTeamProducts(false); }
+  syncAfterAuth: ()=>{ if(getFirebaseConfig()) fetchTeamProducts(false); },
+  captureSnapshot: ()=>({
+    products: JSON.parse(JSON.stringify(products)),
+    quote: JSON.parse(JSON.stringify(quote))
+  }),
+  restoreSnapshot: (snap)=>{
+    if(!snap||!Array.isArray(snap.products))return false;
+    products=JSON.parse(JSON.stringify(snap.products));
+    if(Array.isArray(snap.quote))quote=JSON.parse(JSON.stringify(snap.quote));
+    saveLocal();
+    renderCatalog(false);
+    renderMatch(false);
+    renderQuote();
+    if(window.PlatformHub)window.PlatformHub.updateSidebarBadges();
+    toast(`Catálogo restaurado (${products.length} produtos)!`,'success');
+    return true;
+  }
 };
 
 })();
@@ -8282,6 +8577,12 @@ window.AuthManager = (function() {
         }
         if (window.ProdutosModule && window.ProdutosModule.syncAfterAuth) {
           window.ProdutosModule.syncAfterAuth();
+        }
+        if (window.EditalModule && window.EditalModule.initFirebaseSync) {
+          window.EditalModule.initFirebaseSync(authApp, user);
+        }
+        if (window.CheckpointManager && window.CheckpointManager.initFirebaseSync) {
+          window.CheckpointManager.initFirebaseSync(authApp, user);
         }
         if (window.PropostaBridge && window.PropostaBridge.autoFitZoom) {
           setTimeout(() => window.PropostaBridge.autoFitZoom(), 150);
@@ -8676,3 +8977,1722 @@ window.AuthManager = (function() {
         getCurrentUserName: () => getDisplayName(currentUser)
       };
     })();
+
+
+// =========================================================================
+// MÓDULO 5: CENTRAL DE SAVE GERAL & CHECKPOINTS (100% FIREBASE CLOUD)
+// =========================================================================
+window.CheckpointManager = (function() {
+  const MAX_CHECKPOINTS = 10;
+  let undoList = [];
+  let redoList = [];
+  let isSavingNow = false;
+  let fbDb = null;
+  let fbUser = null;
+
+  function getCloudDocRef() {
+    if (!fbDb) return null;
+    const userId = fbUser ? fbUser.uid : 'team';
+    return fbDb.collection('brava_propostas').doc('team')
+      .collection('checkpoints').doc(`${userId}_global`);
+  }
+
+  // Carrega o histórico de saves direto do Firebase Firestore
+  async function loadFromFirebase() {
+    const ref = getCloudDocRef();
+    if (!ref) return;
+    try {
+      const snap = await ref.get();
+      if (snap.exists && snap.data() && Array.isArray(snap.data().items)) {
+        undoList = snap.data().items.map(item => ({
+          ...item,
+          syncedCloud: true
+        }));
+        updateButtons();
+      }
+    } catch (err) {
+      console.warn('Erro ao carregar saves do Firebase:', err);
+    }
+  }
+
+  // Envia o histórico de saves direto para o Firebase Firestore (respeitando limite de tamanho)
+  async function persistToFirebase() {
+    const ref = getCloudDocRef();
+    if (!ref) return false;
+
+    const buildPayload = (list, includeFullAgenda) => list.slice(0, MAX_CHECKPOINTS).map(cp => {
+      const s = cp.snapshot || {};
+      const compactSnap = {};
+      if (s.proposta) compactSnap.proposta = s.proposta;
+      if (s.edital) compactSnap.edital = s.edital;
+      if (includeFullAgenda && s.agenda) compactSnap.agenda = s.agenda;
+      return {
+        id: cp.id,
+        at: cp.at,
+        ts: cp.ts,
+        kind: cp.kind || 'manual',
+        reason: cp.reason,
+        summary: cp.summary,
+        syncedCloud: true,
+        snapshot: compactSnap
+      };
+    });
+
+    try {
+      let itemsToSave = buildPayload(undoList, true);
+      // Se passar de ~800KB (limite Firestore é 1MB), mantém Proposta+Edital no checkpoint (Agenda e Produtos já sincronizam nas próprias coleções do Firebase!)
+      if (JSON.stringify(itemsToSave).length > 820000) {
+        itemsToSave = buildPayload(undoList, false);
+      }
+      await ref.set({
+        updatedAtMs: Date.now(),
+        updatedBy: (fbUser && (fbUser.displayName || fbUser.email)) || 'Equipe',
+        items: itemsToSave
+      });
+      undoList.forEach(cp => { cp.syncedCloud = true; });
+      return true;
+    } catch (err) {
+      console.error('Erro ao gravar Save Geral no Firebase:', err);
+      return false;
+    }
+  }
+
+  function captureGlobalSnapshot() {
+    const snap = {};
+    if (window.PropostaBridge && window.PropostaBridge.captureBidSnapshot) {
+      snap.proposta = window.PropostaBridge.captureBidSnapshot();
+    }
+    if (window.AgendaModule && window.AgendaModule.captureSnapshot) {
+      snap.agenda = window.AgendaModule.captureSnapshot();
+    }
+    if (window.ProdutosModule && window.ProdutosModule.captureSnapshot) {
+      snap.produtos = window.ProdutosModule.captureSnapshot();
+    }
+    if (window.EditalModule && window.EditalModule.captureSnapshot) {
+      snap.edital = window.EditalModule.captureSnapshot();
+    }
+    return snap;
+  }
+
+  function restoreGlobalSnapshot(snap) {
+    if (!snap) return false;
+    isSavingNow = true;
+    let restoredAny = false;
+    try {
+      if (snap.proposta && window.PropostaBridge && window.PropostaBridge.restoreBidSnapshot) {
+        if (window.PropostaBridge.restoreBidSnapshot(snap.proposta)) restoredAny = true;
+      }
+      if (snap.agenda && window.AgendaModule && window.AgendaModule.restoreSnapshot) {
+        if (window.AgendaModule.restoreSnapshot(snap.agenda)) restoredAny = true;
+      }
+      if (snap.produtos && window.ProdutosModule && window.ProdutosModule.restoreSnapshot) {
+        if (window.ProdutosModule.restoreSnapshot(snap.produtos)) restoredAny = true;
+      }
+      if (snap.edital && window.EditalModule && window.EditalModule.restoreSnapshot) {
+        if (window.EditalModule.restoreSnapshot(snap.edital)) restoredAny = true;
+      }
+    } finally {
+      isSavingNow = false;
+    }
+    return restoredAny;
+  }
+
+  function describeGlobalSnapshot(snap) {
+    const parts = [];
+    if (snap?.proposta?.bid) {
+      const emp = snap.proposta.companyId === 'next' ? 'Next' : 'Brava';
+      const itens = (snap.proposta.bid.groups || []).reduce((s, g) => s + ((g.items || []).length), 0);
+      parts.push(`Proposta ${emp} (${itens} it.)`);
+    }
+    if (snap?.agenda?.records) parts.push(`Agenda (${snap.agenda.records.length})`);
+    if (snap?.produtos?.products) parts.push(`Produtos (${snap.produtos.products.length})`);
+    if (snap?.edital?.items) parts.push(`Edital (${snap.edital.items.length} it.)`);
+    return parts.join(' • ');
+  }
+
+  function notify(msg) {
+    if (window.PropostaBridge && window.PropostaBridge.showToast) {
+      window.PropostaBridge.showToast(msg);
+      return;
+    }
+    const el = document.getElementById('edital-toast');
+    if (el) {
+      el.textContent = msg;
+      el.classList.remove('hidden');
+      setTimeout(() => el.classList.add('hidden'), 3200);
+    }
+  }
+
+  // Cria exatamente 1 ponto de restauração e sobe para o Firebase
+  function capture(modOrScope, reason = 'Backup automático', kind = 'auto') {
+    if (isSavingNow && kind !== 'manual') return null;
+    const now = Date.now();
+    if (undoList.length > 0 && (now - (undoList[0].ts || 0)) < 3000) {
+      const snap = captureGlobalSnapshot();
+      undoList[0].at = new Date(now).toLocaleString('pt-BR');
+      undoList[0].ts = now;
+      undoList[0].reason = String(reason || undoList[0].reason);
+      undoList[0].kind = kind === 'manual' ? 'manual' : undoList[0].kind;
+      undoList[0].summary = describeGlobalSnapshot(snap);
+      undoList[0].snapshot = snap;
+      persistToFirebase();
+      updateButtons();
+      return undoList[0];
+    }
+
+    const snap = captureGlobalSnapshot();
+    const entry = {
+      id: 'cp_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      at: new Date(now).toLocaleString('pt-BR'),
+      ts: now,
+      kind: kind || 'auto',
+      reason: String(reason || 'Save Geral'),
+      summary: describeGlobalSnapshot(snap),
+      syncedCloud: false,
+      snapshot: snap
+    };
+    undoList.unshift(entry);
+    if (undoList.length > MAX_CHECKPOINTS) undoList.length = MAX_CHECKPOINTS;
+    redoList = [];
+    persistToFirebase();
+    updateButtons();
+    return entry;
+  }
+
+  // Save Geral: 1 clique = sincroniza TODOS os módulos diretamente no Firebase e grava 1 ponto único na nuvem
+  async function saveAllNow(fromModal = false) {
+    if (!fbDb) {
+      notify('⚠️ Conecte-se com seu login para salvar diretamente no Firebase.');
+      return;
+    }
+    const sbBtn = document.getElementById('sb-global-save-btn');
+    const origSbHtml = sbBtn ? sbBtn.innerHTML : '';
+    if (sbBtn) { sbBtn.disabled = true; sbBtn.innerHTML = '<span>☁ Salvando...</span>'; }
+
+    isSavingNow = true;
+    try {
+      const tasks = [];
+      if (window.PropostaBridge) {
+        window.PropostaBridge.saveToStorage();
+        if (window.PropostaBridge.flushCloudSaves) tasks.push(window.PropostaBridge.flushCloudSaves(false));
+      }
+      if (window.AgendaModule && window.AgendaModule.syncNow) {
+        tasks.push(Promise.resolve(window.AgendaModule.syncNow()).catch(() => {}));
+      }
+      if (window.ProdutosModule && window.ProdutosModule.syncAfterAuth) {
+        tasks.push(Promise.resolve(window.ProdutosModule.syncAfterAuth()).catch(() => {}));
+      }
+      await Promise.allSettled(tasks);
+    } finally {
+      isSavingNow = false;
+      if (sbBtn) { sbBtn.disabled = false; sbBtn.innerHTML = origSbHtml; }
+    }
+
+    const now = Date.now();
+    const snap = captureGlobalSnapshot();
+    const entry = {
+      id: 'cp_' + now.toString(36) + '_' + Math.random().toString(36).slice(2, 6),
+      at: new Date(now).toLocaleString('pt-BR'),
+      ts: now,
+      kind: 'manual',
+      reason: 'Save Geral (Firebase)',
+      summary: describeGlobalSnapshot(snap),
+      syncedCloud: false,
+      snapshot: snap
+    };
+    undoList.unshift(entry);
+    if (undoList.length > MAX_CHECKPOINTS) undoList.length = MAX_CHECKPOINTS;
+    redoList = [];
+
+    const cloudOk = await persistToFirebase();
+    updateButtons();
+    if (fromModal) openHistoryModal('global');
+    notify(cloudOk
+      ? '☁ Save Geral enviado e sincronizado no Firebase com sucesso!'
+      : '⚠️ Erro ao gravar no Firebase. Verifique sua conexão e permissões.');
+  }
+
+  function schedulePeriodic() {
+    // Sem spam automático no histórico
+  }
+
+  async function undo() {
+    if (!undoList.length) {
+      notify('Nenhum save anterior disponível no Firebase.');
+      return false;
+    }
+    const currentSnap = captureGlobalSnapshot();
+    const target = undoList.shift();
+    redoList.unshift({
+      id: 'redo_' + Date.now().toString(36),
+      at: new Date().toLocaleString('pt-BR'),
+      ts: Date.now(),
+      kind: 'auto',
+      reason: `Antes de voltar ("${target.reason}")`,
+      summary: describeGlobalSnapshot(currentSnap),
+      snapshot: currentSnap
+    });
+    if (redoList.length > MAX_CHECKPOINTS) redoList.length = MAX_CHECKPOINTS;
+
+    const ok = restoreGlobalSnapshot(target.snapshot);
+    await persistToFirebase();
+    updateButtons();
+    if (ok) notify(`↩ Save restaurado do Firebase: ${target.reason} (${target.at})`);
+    return ok;
+  }
+
+  async function redo() {
+    if (!redoList.length) {
+      notify('Nada para refazer.');
+      return false;
+    }
+    const currentSnap = captureGlobalSnapshot();
+    const target = redoList.shift();
+    undoList.unshift({
+      id: 'cp_' + Date.now().toString(36),
+      at: new Date().toLocaleString('pt-BR'),
+      ts: Date.now(),
+      kind: 'auto',
+      reason: 'Antes de Refazer',
+      summary: describeGlobalSnapshot(currentSnap),
+      snapshot: currentSnap
+    });
+    const ok = restoreGlobalSnapshot(target.snapshot);
+    await persistToFirebase();
+    updateButtons();
+    if (ok) notify(`↪ Alteração refeita (${target.at})`);
+    return ok;
+  }
+
+  async function restoreById(cpId) {
+    const idx = undoList.findIndex(x => x.id === cpId);
+    if (idx < 0) return;
+    const currentSnap = captureGlobalSnapshot();
+    const target = undoList[idx];
+    redoList.unshift({
+      id: 'redo_' + Date.now().toString(36),
+      at: new Date().toLocaleString('pt-BR'),
+      ts: Date.now(),
+      kind: 'auto',
+      reason: `Antes de restaurar "${target.reason}"`,
+      summary: describeGlobalSnapshot(currentSnap),
+      snapshot: currentSnap
+    });
+    undoList.splice(idx, 1);
+    const ok = restoreGlobalSnapshot(target.snapshot);
+    await persistToFirebase();
+    updateButtons();
+    closeHistoryModal();
+    if (ok) notify(`↩ Save restaurado do Firebase: ${target.reason} (${target.at})`);
+  }
+
+  async function deleteById(cpId) {
+    undoList = undoList.filter(x => x.id !== cpId);
+    await persistToFirebase();
+    updateButtons();
+    openHistoryModal();
+  }
+
+  async function clearHistory() {
+    if (!undoList.length) return;
+    if (!confirm('Limpar a lista de saves no Firebase? (Seus dados atuais na plataforma não serão apagados)')) return;
+    undoList = [];
+    redoList = [];
+    await persistToFirebase();
+    updateButtons();
+    openHistoryModal();
+    notify('Histórico de saves limpo no Firebase.');
+  }
+
+  function exportGlobalBackup() {
+    const snap = captureGlobalSnapshot();
+    const payload = {
+      type: 'central_licitacoes_backup_geral',
+      exportedAt: new Date().toISOString(),
+      snapshot: snap
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `Central_Licitacoes_Backup_Geral_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    notify('Backup Geral (.JSON) exportado com sucesso!');
+  }
+
+  function importGlobalBackup(event) {
+    const file = event.target && event.target.files ? event.target.files[0] : null;
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async function(e) {
+      try {
+        const parsed = JSON.parse(e.target.result);
+        const snap = parsed.snapshot || parsed;
+        if (!snap || (!snap.proposta && !snap.agenda && !snap.produtos && !snap.edital)) {
+          alert('Arquivo de Backup Geral inválido.');
+          return;
+        }
+        capture('global', 'Backup automático antes de restaurar .JSON', 'auto');
+        restoreGlobalSnapshot(snap);
+        await persistToFirebase();
+        closeHistoryModal();
+        notify('Backup Geral restaurado e sincronizado no Firebase!');
+      } catch (err) {
+        alert('Erro ao ler arquivo JSON de backup.');
+      }
+    };
+    reader.readAsText(file);
+    event.target.value = '';
+  }
+
+  function updateButtons() {
+    const cEl = document.getElementById('cp-count-global');
+    if (cEl) cEl.textContent = String(undoList.length);
+    const qUndo = document.getElementById('cp-modal-quick-undo');
+    if (qUndo) qUndo.disabled = undoList.length === 0;
+  }
+
+  function openHistoryModal() {
+    updateButtons();
+    const countEl = document.getElementById('cp-modal-count');
+    if (countEl) countEl.textContent = `${undoList.length} save(s) no Firebase`;
+
+    const listEl = document.getElementById('cp-modal-list');
+    if (listEl) {
+      if (!undoList.length) {
+        listEl.innerHTML = '<div class="p-6 text-center text-xs text-slate-400">Nenhum save registrado no Firebase ainda.<br>Clique em <strong>"☁ Salvar Tudo no Firebase"</strong> para criar seu primeiro Save Geral na nuvem.</div>';
+      } else {
+        listEl.innerHTML = undoList.map((cp, idx) => {
+          const isManual = cp.kind === 'manual' || /Save Geral/i.test(cp.reason || '');
+          const badgeCls = isManual ? 'bg-emerald-100 text-emerald-800' : 'bg-sky-100 text-sky-800';
+          const badgeTxt = isManual ? '☁ FIREBASE' : '☁ AUTO';
+          return `
+          <div class="p-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition">
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="px-1.5 py-0.5 rounded ${badgeCls} text-[9.5px] font-extrabold shrink-0">${badgeTxt} #${idx + 1}</span>
+                <span class="text-xs font-bold text-slate-900 truncate">${escapeHtml(cp.reason)}</span>
+              </div>
+              <div class="text-[11px] text-slate-500 mt-0.5">${escapeHtml(cp.at)}${cp.summary ? ' • ' + escapeHtml(cp.summary) : ''}</div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" onclick="CheckpointManager.restoreById('${cp.id}')" class="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold transition">↩ Restaurar</button>
+              <button type="button" onclick="CheckpointManager.deleteById('${cp.id}')" title="Remover este save do Firebase" class="px-2 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-500 hover:text-rose-600 text-xs font-bold transition">✕</button>
+            </div>
+          </div>`;
+        }).join('');
+      }
+    }
+
+    const redoBtn = document.getElementById('cp-modal-redo-btn');
+    if (redoBtn) redoBtn.classList.toggle('hidden', redoList.length === 0);
+
+    document.getElementById('checkpointModal')?.classList.remove('hidden');
+  }
+
+  function closeHistoryModal() {
+    document.getElementById('checkpointModal')?.classList.add('hidden');
+  }
+
+  function redoFromModal() {
+    redo();
+    openHistoryModal();
+  }
+
+  async function initFirebaseSync(authApp, user) {
+    if (!authApp || typeof firebase === 'undefined') return;
+    try {
+      fbDb = firebase.firestore(authApp);
+      fbUser = user || null;
+      await loadFromFirebase();
+      updateButtons();
+    } catch (err) {
+      console.warn('CheckpointManager Firebase sync aviso:', err);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    setTimeout(() => updateButtons(), 120);
+  });
+
+  return {
+    capture,
+    saveAllNow,
+    schedulePeriodic,
+    undo,
+    redo,
+    restoreById,
+    deleteById,
+    clearHistory,
+    exportGlobalBackup,
+    importGlobalBackup,
+    updateButtons,
+    openHistoryModal,
+    closeHistoryModal,
+    redoFromModal,
+    initFirebaseSync
+  };
+})();
+
+
+// =========================================================================
+// MÓDULO 6: PESQUISA DE EDITAL (#module-edital)
+// Multi-arquivos (PDF, DOCX, XLSX/XLS/ODS/CSV/TSV, TXT), Extração Automática,
+// Busca por Palavras-Chave e Geração de Excel (.xlsx) para Copiar Produtos
+// =========================================================================
+window.EditalModule = (function() {
+  const STORAGE_KEY_CURRENT = 'central_licitacoes_edital_current_v1';
+  const STORAGE_KEY_SAVED = 'central_licitacoes_edital_saved_v1';
+
+  let activeSubView = 'analise';
+  let fbDb = null;
+  let fbUser = null;
+
+  let edState = {
+    files: [], // [{ id, name, ext, size, text, pagesOrSheets, tables: [[...]] }]
+    extracted: {
+      orgao: '',
+      numero: '',
+      processo: '',
+      sessao: '',
+      entrega: '',
+      atestadoFlag: 'Verificar',
+      atestadoDetalhes: '',
+      validade: '',
+      garantia: '',
+      amostras: '',
+      regionalidade: '',
+      objeto: ''
+    },
+    highlights: [],
+    items: [] // [{ id, numero, quant, unid, descricao, obs, origem }]
+  };
+
+  let savedAnalyses = [];
+
+  function esc(str) {
+    return String(str === null || str === undefined ? '' : str)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function normTxt(str) {
+    return String(str || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  }
+
+  function genId() {
+    return 'ed_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 6);
+  }
+
+  function toast(msg) {
+    const el = document.getElementById('edital-toast');
+    if (!el) return;
+    el.textContent = msg;
+    el.classList.remove('hidden');
+    clearTimeout(window._edToastTimer);
+    window._edToastTimer = setTimeout(() => el.classList.add('hidden'), 3300);
+  }
+
+  function showView(view) {
+    const valid = ['analise', 'busca', 'itens', 'historico'];
+    if (!valid.includes(view)) view = 'analise';
+    activeSubView = view;
+
+    valid.forEach(v => {
+      document.getElementById('edital-view-' + v)?.classList.toggle('hidden', v !== view);
+      document.getElementById('edital-tab-' + v)?.classList.toggle('is-active', v === view);
+    });
+    // Mantém o painel de upload visível apenas na aba 1 (ou quando ainda não há arquivos)
+    const uploadPanel = document.getElementById('edital-upload-panel');
+    if (uploadPanel) {
+      uploadPanel.classList.toggle('hidden', view !== 'analise' && edState.files.length > 0);
+    }
+    if (window.PlatformHub && window.PlatformHub.highlightEditalView) {
+      window.PlatformHub.highlightEditalView(view);
+    }
+    try {
+      if (view === 'analise') { renderFilesList(); renderFields(); }
+      else if (view === 'itens') { renderItemsTable(); }
+      else if (view === 'historico') { renderSavedList(); }
+      updateBadges();
+    } catch (err) {
+      console.error('Erro ao renderizar aba de Edital:', view, err);
+    }
+  }
+
+  function updateBadges() {
+    const fCount = edState.files.length;
+    const iCount = edState.items.length;
+    const sCount = savedAnalyses.length;
+    const b1 = document.getElementById('sb-edital-files-badge');
+    const b2 = document.getElementById('sb-edital-items-badge');
+    const b3 = document.getElementById('sb-edital-saved-badge');
+    const tItems = document.getElementById('edital-items-count-tab');
+    const tSaved = document.getElementById('edital-saved-count-tab');
+    const pill = document.getElementById('edital-files-summary-pill');
+
+    if (b1) b1.textContent = String(fCount);
+    if (b2) b2.textContent = String(iCount);
+    if (b3) b3.textContent = String(sCount);
+    if (tItems) tItems.textContent = String(iCount);
+    if (tSaved) tSaved.textContent = String(sCount);
+    if (pill) {
+      const totalChars = edState.files.reduce((s, f) => s + (f.text ? f.text.length : 0), 0);
+      pill.textContent = fCount
+        ? `${fCount} arquivo(s) • ${(totalChars / 1000).toFixed(1)}k caracteres lidos`
+        : 'Nenhum arquivo carregado';
+    }
+  }
+
+  function saveLocal() {
+    try {
+      const compactFiles = edState.files.map(f => ({
+        id: f.id,
+        name: f.name,
+        ext: f.ext,
+        size: f.size,
+        pagesOrSheets: f.pagesOrSheets,
+        text: (f.text || '').slice(0, 180000),
+        tables: Array.isArray(f.tables) ? f.tables.slice(0, 10).map(t => t.slice(0, 300)) : []
+      }));
+      localStorage.setItem(STORAGE_KEY_CURRENT, JSON.stringify({
+        files: compactFiles,
+        extracted: edState.extracted,
+        highlights: edState.highlights,
+        items: edState.items
+      }));
+    } catch (e) {}
+    try {
+      localStorage.setItem(STORAGE_KEY_SAVED, JSON.stringify(savedAnalyses.slice(0, 30)));
+    } catch (e) {}
+  }
+
+  function loadLocal() {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY_CURRENT);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          edState.files = Array.isArray(parsed.files) ? parsed.files : [];
+          edState.extracted = { ...edState.extracted, ...(parsed.extracted || {}) };
+          edState.highlights = Array.isArray(parsed.highlights) ? parsed.highlights : [];
+          edState.items = Array.isArray(parsed.items) ? parsed.items : [];
+        }
+      }
+    } catch (e) {}
+    try {
+      const rawS = localStorage.getItem(STORAGE_KEY_SAVED);
+      if (rawS) savedAnalyses = JSON.parse(rawS) || [];
+    } catch (e) { savedAnalyses = []; }
+  }
+
+  // ==================== LEITURA COMPLETA DE MÚLTIPLOS FORMATOS ====================
+  function handleDragOver(e) {
+    e.preventDefault();
+    document.getElementById('edital-dropzone')?.classList.add('ed-dropzone-active');
+  }
+  function handleDragLeave(e) {
+    e.preventDefault();
+    document.getElementById('edital-dropzone')?.classList.remove('ed-dropzone-active');
+  }
+  function handleDrop(e) {
+    e.preventDefault();
+    document.getElementById('edital-dropzone')?.classList.remove('ed-dropzone-active');
+    const files = e.dataTransfer && e.dataTransfer.files ? Array.from(e.dataTransfer.files) : [];
+    if (files.length) processMultipleFiles(files);
+  }
+  function handleFileSelect(e) {
+    const files = e.target && e.target.files ? Array.from(e.target.files) : [];
+    if (files.length) processMultipleFiles(files);
+    e.target.value = '';
+  }
+
+  async function readPdfFile(file) {
+    if (typeof pdfjsLib === 'undefined') {
+      throw new Error('Biblioteca pdf.js não carregada.');
+    }
+    if (pdfjsLib.GlobalWorkerOptions && !pdfjsLib.GlobalWorkerOptions.workerSrc) {
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    }
+    const ab = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: ab }).promise;
+    const pagesText = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const tc = await page.getTextContent();
+      let lastY = null;
+      let pageStr = '';
+      for (const item of tc.items) {
+        const y = item.transform ? Math.round(item.transform[5]) : null;
+        if (lastY !== null && y !== null && Math.abs(y - lastY) > 4) {
+          pageStr += '\n';
+        } else if (pageStr && !pageStr.endsWith(' ') && !pageStr.endsWith('\n')) {
+          pageStr += ' ';
+        }
+        pageStr += item.str;
+        lastY = y;
+      }
+      pagesText.push(`--- PÁGINA ${p} ---\n${pageStr.trim()}`);
+    }
+    return {
+      text: pagesText.join('\n\n'),
+      pagesOrSheets: `${pdf.numPages} pág.`,
+      tables: []
+    };
+  }
+
+  async function readDocxFile(file) {
+    if (typeof mammoth === 'undefined') {
+      throw new Error('Biblioteca mammoth.js não carregada.');
+    }
+    const ab = await file.arrayBuffer();
+    const rawRes = await mammoth.extractRawText({ arrayBuffer: ab });
+    const htmlRes = await mammoth.convertToHtml({ arrayBuffer: ab });
+    const tables = [];
+    const tmp = document.createElement('div');
+    tmp.innerHTML = htmlRes.value || '';
+    tmp.querySelectorAll('table').forEach(tbl => {
+      const rows = Array.from(tbl.querySelectorAll('tr')).map(tr =>
+        Array.from(tr.querySelectorAll('th,td')).map(td => td.textContent.replace(/\s+/g, ' ').trim())
+      ).filter(r => r.some(Boolean));
+      if (rows.length >= 2) tables.push(rows);
+    });
+    return {
+      text: rawRes.value || '',
+      pagesOrSheets: `${tables.length} tabela(s)`,
+      tables
+    };
+  }
+
+  async function readSpreadsheetFile(file, ext) {
+    if (typeof XLSX === 'undefined') {
+      if (ext === 'csv' || ext === 'tsv') {
+        const txt = await file.text();
+        const sep = txt.includes('\t') ? '\t' : (txt.includes(';') ? ';' : ',');
+        const rows = txt.split(/\r?\n/).map(l => l.split(sep).map(c => c.trim())).filter(r => r.some(Boolean));
+        return { text: txt, pagesOrSheets: '1 aba', tables: rows.length >= 2 ? [rows] : [] };
+      }
+      throw new Error('Biblioteca SheetJS (XLSX) não carregada.');
+    }
+    const ab = await file.arrayBuffer();
+    const wb = XLSX.read(new Uint8Array(ab), { type: 'array' });
+    const textParts = [];
+    const tables = [];
+    wb.SheetNames.forEach(sheetName => {
+      const ws = wb.Sheets[sheetName];
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+      const cleanRows = rows.map(r => r.map(c => String(c || '').trim())).filter(r => r.some(Boolean));
+      if (cleanRows.length >= 2) tables.push(cleanRows);
+      textParts.push(`--- ABA: ${sheetName} ---\n` + cleanRows.map(r => r.join(' | ')).join('\n'));
+    });
+    return {
+      text: textParts.join('\n\n'),
+      pagesOrSheets: `${wb.SheetNames.length} aba(s)`,
+      tables
+    };
+  }
+
+  async function processMultipleFiles(fileList) {
+    const prog = document.getElementById('edital-reading-progress');
+    const progMsg = document.getElementById('edital-reading-msg');
+    if (prog) prog.classList.remove('hidden');
+
+    let added = 0;
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
+      const ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (progMsg) progMsg.textContent = `Lendo arquivo ${i + 1} de ${fileList.length}: ${file.name}...`;
+      try {
+        let parsed = null;
+        if (ext === 'pdf') parsed = await readPdfFile(file);
+        else if (ext === 'docx') parsed = await readDocxFile(file);
+        else if (['xlsx', 'xls', 'ods', 'csv', 'tsv'].includes(ext)) parsed = await readSpreadsheetFile(file, ext);
+        else if (ext === 'txt') {
+          const txt = await file.text();
+          parsed = { text: txt, pagesOrSheets: `${txt.split(/\r?\n/).length} linhas`, tables: [] };
+        } else {
+          toast(`Formato não suportado ignorado: ${file.name}`);
+          continue;
+        }
+
+        edState.files.push({
+          id: genId(),
+          name: file.name,
+          ext: ext.toUpperCase(),
+          size: file.size,
+          text: parsed.text || '',
+          pagesOrSheets: parsed.pagesOrSheets || '',
+          tables: parsed.tables || []
+        });
+        added++;
+      } catch (err) {
+        console.error('Erro ao ler arquivo de edital:', file.name, err);
+        toast(`Erro ao ler "${file.name}": ${err.message || err}`);
+      }
+    }
+
+    if (prog) prog.classList.add('hidden');
+    if (added > 0) {
+      reanalyzeAll();
+      toast(`${added} arquivo(s) lido(s) e analisado(s) com sucesso!`);
+    }
+  }
+
+  function removeFile(fileId) {
+    edState.files = edState.files.filter(f => f.id !== fileId);
+    reanalyzeAll();
+    toast('Arquivo removido da análise.');
+  }
+
+  function clearAll() {
+    if (edState.files.length && !confirm('Limpar todos os arquivos, dados extraídos e itens desta análise?')) return;
+    edState.files = [];
+    edState.extracted = {
+      orgao: '', numero: '', processo: '', sessao: '', entrega: '',
+      atestadoFlag: 'Verificar', atestadoDetalhes: '', validade: '',
+      garantia: '', amostras: '', regionalidade: '', objeto: ''
+    };
+    edState.highlights = [];
+    edState.items = [];
+    saveLocal();
+    renderAll();
+    toast('Análise de edital limpa.');
+  }
+
+  // ==================== EXTRAÇÃO AUTOMÁTICA DOS DADOS DO CERTAME ====================
+  function getConsolidatedText() {
+    return edState.files.map(f => `\n===== ARQUIVO: ${f.name} =====\n${f.text || ''}`).join('\n');
+  }
+
+  function findFirstMatch(text, regexList) {
+    for (const rx of regexList) {
+      const m = text.match(rx);
+      if (m) {
+        const val = (m[1] || m[0] || '').replace(/\s+/g, ' ').trim();
+        if (val) return val;
+      }
+    }
+    return '';
+  }
+
+  function findSnippetAround(text, regex, radius = 140) {
+    const m = text.match(regex);
+    if (!m || m.index === undefined) return '';
+    const start = Math.max(0, m.index - Math.floor(radius * 0.4));
+    const end = Math.min(text.length, m.index + m[0].length + radius);
+    return text.slice(start, end).replace(/\s+/g, ' ').trim();
+  }
+
+  function extractBidMetadata() {
+    const full = getConsolidatedText();
+    if (!full.trim()) return;
+
+    const ex = edState.extracted;
+    const highlights = [];
+
+    // 1. Órgão Licitante
+    const orgao = findFirstMatch(full, [
+      /(?:PREFEITURA\s+MUNICIPAL\s+DE\s+[A-ZÀ-Ú][^\n,;]{2,70})/i,
+      /(?:MUNIC[ÍI]PIO\s+DE\s+[A-ZÀ-Ú][^\n,;]{2,70})/i,
+      /(?:C[ÂA]MARA\s+MUNICIPAL\s+DE\s+[A-ZÀ-Ú][^\n,;]{2,70})/i,
+      /(?:CONS[ÓO]RCIO\s+(?:INTERMUNICIPAL|P[ÚU]BLICO)[^\n,;]{2,80})/i,
+      /(?:FUNDA[ÇC][ÃA]O\s+[A-ZÀ-Ú][^\n,;]{2,70})/i,
+      /(?:SECRETARIA\s+(?:DE\s+ESTADO|MUNICIPAL)[^\n,;]{2,70})/i,
+      /(?:UNIVERSIDADE\s+[A-ZÀ-Ú][^\n,;]{2,70})/i,
+      /(?:[ÓO]RG[ÃA]O\s*(?:LICITANTE|GERENCIADOR)?\s*[:\-]\s*([^\n]{4,80}))/i
+    ]);
+    if (orgao) ex.orgao = orgao.replace(/^[ÓO]RG[ÃA]O[^:\-]*[:\-]\s*/i, '').slice(0, 110);
+
+    // 2. Número do Pregão / Edital
+    const numero = findFirstMatch(full, [
+      /(?:PREG[ÃA]O\s+ELETR[ÔO]NICO|DISPENSA\s+ELETR[ÔO]NICA|CONCORR[ÊE]NCIA\s+ELETR[ÔO]NICA|EDITAL)\s*(?:DE\s+LICITA[ÇC][ÃA]O\s*)?(?:N[º°.\s]*|NÚMERO\s*)([0-9]{1,5}\s*[\/\-]\s*20[0-9]{2})/i,
+      /(?:PREG[ÃA]O|EDITAL)\s*(?:N[º°.\s]*)([0-9]{1,5}\s*[\/\-]\s*20[0-9]{2})/i
+    ]);
+    if (numero) ex.numero = numero.replace(/\s+/g, '');
+
+    // 3. Número do Processo Administrativo
+    const processo = findFirstMatch(full, [
+      /PROCESSO\s*(?:ADMINISTRATIVO|LICITAT[ÓO]RIO|N[º°.\s]*)[:\s]*(?:N[º°.\s]*)?([0-9][0-9.\-\/]{2,26})/i
+    ]);
+    if (processo) ex.processo = processo.trim();
+
+    // 4. Dia e Horário da Sessão / Disputa
+    const sessaoSnippet = findFirstMatch(full, [
+      /(?:SESS[ÃA]O\s+P[ÚU]BLICA|ABERTURA\s+DA\s+SESS[ÃA]O|IN[ÍI]CIO\s+DA\s+DISPUTA|DATA\s+DA\s+SESS[ÃA]O|DATA\s+E\s+HOR[ÁA]RIO)[^\n]{0,60}?(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}(?:[^\n]{0,30}?\d{1,2}\s*[:hH]\s*\d{2})?)/i,
+      /(\d{1,2}\s+de\s+[a-zç]+\s+de\s+20\d{2}(?:[^\n]{0,30}?\d{1,2}\s*[:hH]\s*\d{2})?)/i,
+      /(\d{1,2}[\/\-]\d{1,2}[\/\-]20\d{2}\s*(?:[àa]s|-)?\s*\d{1,2}\s*[:hH]\s*\d{2})/i
+    ]);
+    if (sessaoSnippet) ex.sessao = sessaoSnippet;
+
+    // 5. Prazo de Entrega
+    const entrega = findFirstMatch(full, [
+      /(?:PRAZO\s+DE\s+ENTREGA|ENTREGA\s+DOS\s+(?:MATERIAIS|PRODUTOS|BENS|ITENS))[^\n.]{0,120}?(\d{1,3}\s*(?:\([^\)]+\)\s*)?dias?(?:\s+[úu]teis|\s+corridos)?)/i,
+      /(?:ENTREGUE(?:S)?\s+EM\s+AT[ÉE]|PRAZO\s+M[ÁA]XIMO\s+DE)\s*(\d{1,3}\s*(?:\([^\)]+\)\s*)?dias?(?:\s+[úu]teis|\s+corridos)?)/i
+    ]);
+    if (entrega) {
+      ex.entrega = entrega;
+      const sn = findSnippetAround(full, /prazo\s+de\s+entrega/i, 160);
+      if (sn) highlights.push({ label: 'Prazo de Entrega', text: sn });
+    }
+
+    // 6. Exigência de Atestado de Capacidade Técnica
+    const atestSnippet = findSnippetAround(full, /atestado(?:s)?\s+de\s+capacidade\s+t[ée]cnica|qualifica[çc][ãa]o\s+t[ée]cnica/i, 190);
+    if (atestSnippet) {
+      const dispensaAtest = /(?:n[ãa]o\s+(?:ser[áa]|haver[áa]|se)\s+exigid|dispensad[oa]\s+.*atestado|isento\s+de\s+atestado)/i.test(atestSnippet);
+      ex.atestadoFlag = dispensaAtest ? 'Não' : 'Sim';
+      ex.atestadoDetalhes = atestSnippet.slice(0, 180);
+      highlights.push({ label: 'Atestado de Capacidade Técnica', text: atestSnippet });
+    } else {
+      ex.atestadoFlag = 'Não';
+      ex.atestadoDetalhes = 'Nenhuma menção encontrada nos arquivos enviados.';
+    }
+
+    // 7. Validade da Proposta
+    const validade = findFirstMatch(full, [
+      /(?:VALIDADE\s+DA\s+PROPOSTA)[^\n.]{0,80}?(\d{1,3}\s*(?:\([^\)]+\)\s*)?dias?)/i
+    ]);
+    if (validade) ex.validade = validade;
+
+    // 8. Garantia
+    const garantia = findFirstMatch(full, [
+      /(?:PRAZO\s+DE\s+GARANTIA|GARANTIA\s+M[ÍI]NIMA|GARANTIA\s+DOS\s+PRODUTOS)[^\n.]{0,90}?(\d{1,3}\s*(?:\([^\)]+\)\s*)?(?:meses|anos?|dias?))/i
+    ]);
+    if (garantia) ex.garantia = garantia;
+
+    // 9. Amostras / Catálogo
+    const amostraSnip = findSnippetAround(full, /(?:apresenta[çc][ãa]o\s+de\s+amostra|exig[êe]ncia\s+de\s+amostra|amostra(?:s)?\s+do(?:s)?\s+produto|cat[áa]logo\s+t[ée]cnico|folder)/i, 150);
+    if (amostraSnip) {
+      const naoExige = /n[ãa]o\s+(?:ser[áa]|haver[áa])\s+exigid[oa]s?\s+amostra/i.test(amostraSnip);
+      ex.amostras = naoExige ? 'Não exige amostra' : amostraSnip.slice(0, 140);
+      highlights.push({ label: 'Amostra / Catálogo', text: amostraSnip });
+    }
+
+    // 10. Regionalidade / Exclusividade ME-EPP
+    const regSnip = findSnippetAround(full, /(?:regionalidade|exclusiv[oa]\s+para\s+(?:me|epp|microempresa)|margem\s+de\s+prefer[êe]ncia\s+local|sediadas?\s+local|âmbito\s+regional)/i, 160);
+    if (regSnip) {
+      ex.regionalidade = regSnip.slice(0, 140);
+      highlights.push({ label: 'Regionalidade / Exclusividade', text: regSnip });
+    }
+
+    // 11. Objeto
+    const objeto = findFirstMatch(full, [
+      /(?:DO\s+OBJETO|OBJETO)\s*[:\-–]?\s*\n?\s*(?:O\s+presente\s+[^\n.]{0,60}tem\s+por\s+objeto\s+)?([^\n]{15,240})/i
+    ]);
+    if (objeto) ex.objeto = objeto.slice(0, 220);
+
+    edState.highlights = highlights;
+  }
+
+  // ==================== EXTRAÇÃO INTELIGENTE DE ITENS / PRODUTOS ====================
+  function extractItemsFromTextLines(text, origemName, pushItem) {
+    const lines = String(text || '').split(/\r?\n/).map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    const unitPattern = '(?:UNID(?:ADE)?S?|UND|UN|CXS?|CAIXAS?|KITS?|PAR(?:ES)?|JGS?|JOGOS?|P[CÇ]S?|PE[CÇ]AS?|PCTS?|PACOTES?|KGS?|GRS?|LTS?|LITROS?|MTS?|METROS?|RLS?|ROLOS?|FRS?|FRASCOS?|SCS?|SACOS?|GLS?|GAL[ÃA]O|DZS?|DUZIAS?|L|M|G)';
+
+    // Padrão 1: "1  20  UN  Descrição..." ou "01  UN  20  Descrição..."
+    const rxLeadQty = new RegExp(`^(?:ITEM\\s*)?(\\d{1,3})\\s+(?:(\\d{1,5}(?:[.,]\\d+)?)\\s+(${unitPattern})|(${unitPattern})\\s+(\\d{1,5}(?:[.,]\\d+)?))\\s+(.{6,})$`, 'i');
+    // Padrão 2 (Mais comum em TR/ComprasGov/BLL/BNC): "1  Descrição completa...  UN  20  R$ 150,00"
+    const rxTrailQty = new RegExp(`^(?:ITEM\\s*)?(\\d{1,3})(?:\\s*[-–.)])?\\s+(.{8,}?)\\s+(${unitPattern})\\s+(\\d{1,5}(?:[.,]\\d+)?)(?:\\s+R?\\$?\\s*[\\d.,]+)*$`, 'i');
+    // Padrão 3: "1  Descrição completa...  20  UN  R$ 150,00"
+    const rxTrailQtyRev = new RegExp(`^(?:ITEM\\s*)?(\\d{1,3})(?:\\s*[-–.)])?\\s+(.{8,}?)\\s+(\\d{1,5}(?:[.,]\\d+)?)\\s+(${unitPattern})(?:\\s+R?\\$?\\s*[\\d.,]+)*$`, 'i');
+    // Padrão 4: "ITEM 01 - Descrição..."
+    const rxItemPrefix = /^(?:ITEM\s*N?[º°.]?\s*)(\d{1,3})\s*[\-–:\.]\s*(.{8,})$/i;
+
+    const isStopLine = (l) => (
+      /^---\s*P[ÁA]GINA/i.test(l) ||
+      /^(?:CL[ÁA]USULA|ANEXO\s+[IVX0-9]+|TOTAL\s+GERAL|VALOR\s+TOTAL|SUBTOTAL|ASSINATURA)/i.test(l)
+    );
+
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (isStopLine(line)) continue;
+
+      let m = line.match(rxLeadQty);
+      if (m) {
+        const num = m[1];
+        const qty = parseFloat((m[2] || m[5] || '1').replace(/\./g, '').replace(',', '.')) || 1;
+        const un = (m[3] || m[4] || 'UN').toUpperCase();
+        let desc = m[6];
+        while (i + 1 < lines.length && !rxLeadQty.test(lines[i + 1]) && !rxTrailQty.test(lines[i + 1]) && !rxItemPrefix.test(lines[i + 1]) && !isStopLine(lines[i + 1]) && lines[i + 1].length > 3 && desc.length < 750) {
+          if (/^(?:R\$\s*[\d.,]+|\d+\s+[\d.,]+)$/.test(lines[i + 1])) break;
+          desc += ' ' + lines[i + 1];
+          i++;
+        }
+        pushItem(num, qty, un, desc, '', origemName);
+        continue;
+      }
+
+      m = line.match(rxTrailQty);
+      if (m && !/^(?:do|da|dos|das|o|a|art\.?|inciso|par[áa]grafo)\s+/i.test(m[2])) {
+        const num = m[1];
+        const desc = m[2].trim();
+        const un = m[3].toUpperCase();
+        const qty = parseFloat(m[4].replace(/\./g, '').replace(',', '.')) || 1;
+        pushItem(num, qty, un, desc, '', origemName);
+        continue;
+      }
+
+      m = line.match(rxTrailQtyRev);
+      if (m && !/^(?:do|da|dos|das|o|a|art\.?|inciso|par[áa]grafo)\s+/i.test(m[2])) {
+        const num = m[1];
+        const desc = m[2].trim();
+        const qty = parseFloat(m[3].replace(/\./g, '').replace(',', '.')) || 1;
+        const un = m[4].toUpperCase();
+        pushItem(num, qty, un, desc, '', origemName);
+        continue;
+      }
+
+      m = line.match(rxItemPrefix);
+      if (m && !/^(?:do|da|dos|das|o|a|os|as)\s+(?:edital|preg|processo|contrato|habilit|proposta|pagamento)/i.test(m[2])) {
+        const num = m[1];
+        let desc = m[2];
+        while (i + 1 < lines.length && !rxLeadQty.test(lines[i + 1]) && !rxTrailQty.test(lines[i + 1]) && !rxItemPrefix.test(lines[i + 1]) && !isStopLine(lines[i + 1]) && lines[i + 1].length > 3 && desc.length < 750) {
+          desc += ' ' + lines[i + 1];
+          i++;
+        }
+        let qty = 1, un = 'UN';
+        const qMatch = desc.match(/(?:qtd\.?|quant(?:idade)?\.?)\s*[:\-]?\s*(\d{1,5})/i);
+        if (qMatch) qty = parseInt(qMatch[1], 10) || 1;
+        const uMatch = desc.match(new RegExp(`\\b(${unitPattern})\\b`, 'i'));
+        if (uMatch) un = uMatch[1].toUpperCase();
+        pushItem(num, qty, un, desc, '', origemName);
+      }
+    }
+  }
+
+  function extractItemsFromAllFiles() {
+    const extractedItems = [];
+    const seenKeys = new Set();
+
+    function pushItem(numero, quant, unid, descricao, obs, origem) {
+      const cleanDesc = String(descricao || '').replace(/\s+/g, ' ').trim();
+      if (cleanDesc.length < 4) return;
+      const numStr = String(numero || (extractedItems.length + 1)).trim().slice(0, 12);
+      const key = `${numStr}|${cleanDesc.slice(0, 60).toLowerCase()}`;
+      if (seenKeys.has(key)) return;
+      seenKeys.add(key);
+      const qNum = Number(quant);
+      extractedItems.push({
+        id: genId(),
+        numero: numStr || String(extractedItems.length + 1),
+        quant: Number.isFinite(qNum) && qNum > 0 ? qNum : 1,
+        unid: String(unid || 'UN').trim().toUpperCase().slice(0, 12) || 'UN',
+        descricao: cleanDesc,
+        obs: String(obs || '').trim(),
+        origem: String(origem || '').trim()
+      });
+    }
+
+    try {
+      // 1. Extrai primeiro de tabelas estruturadas (Excel, CSV, DOCX)
+      edState.files.forEach(file => {
+        (file.tables || []).forEach(rows => {
+          if (!Array.isArray(rows) || rows.length < 2) return;
+          let hdrIdx = -1;
+          let map = {};
+          for (let r = 0; r < Math.min(rows.length, 10); r++) {
+            const row = rows[r];
+            if (!Array.isArray(row)) continue;
+            const m = {};
+            let hits = 0;
+            row.forEach((cell, cIdx) => {
+              const h = normTxt(cell);
+              if (!h) return;
+              if (m.desc === undefined && /(desc|especific|objeto|produto|material|discrimin|detalhamento|item\/espec)/.test(h)) { m.desc = cIdx; hits++; }
+              else if (m.quant === undefined && /(quant|qtd|qtde|qnt)/.test(h)) { m.quant = cIdx; hits++; }
+              else if (m.unid === undefined && /\b(unid|unidade|un|und|medida|um|emb)\b/.test(h) && !/(unit|valor|preco)/.test(h)) { m.unid = cIdx; hits++; }
+              else if (m.item === undefined && /\b(item|itens|n|no|num|ord|lote)\b/.test(h) && !/(desc|valor|quant)/.test(h)) { m.item = cIdx; hits++; }
+              else if (m.obs === undefined && /(valor|preco|unit|total|obs|referencia|marca)/.test(h)) { m.obs = cIdx; }
+            });
+            if (m.desc !== undefined && hits >= 2) { hdrIdx = r; map = m; break; }
+          }
+          if (hdrIdx < 0) return;
+          for (let r = hdrIdx + 1; r < rows.length; r++) {
+            const row = rows[r];
+            if (!Array.isArray(row)) continue;
+            const desc = String(row[map.desc] || '').trim();
+            if (!desc || /^(total|subtotal|valor\s+total|soma)/i.test(normTxt(desc))) continue;
+            const num = map.item !== undefined && row[map.item] ? row[map.item] : String(extractedItems.length + 1);
+            const qRaw = map.quant !== undefined ? String(row[map.quant] || '').replace(/\./g, '').replace(',', '.') : '1';
+            const qVal = parseFloat(qRaw) || 1;
+            const un = map.unid !== undefined && row[map.unid] ? row[map.unid] : 'UN';
+            const obs = map.obs !== undefined && row[map.obs] ? `Ref.: ${row[map.obs]}` : '';
+            pushItem(num, qVal, un, desc, obs, file.name);
+          }
+        });
+      });
+
+      // 2. Extrai de texto corrido (PDF / TXT / DOCX sem tabela)
+      edState.files.forEach(file => {
+        if ((file.tables || []).length > 0 && extractedItems.some(it => it.origem === file.name)) return;
+        extractItemsFromTextLines(file.text || '', file.name, pushItem);
+      });
+    } catch (err) {
+      console.error('Erro na extração de itens do edital:', err);
+    }
+
+    if (extractedItems.length > 0 || edState.items.length === 0) {
+      edState.items = extractedItems;
+    }
+  }
+
+  function reextractItemsOnly() {
+    if (!edState.files.length) {
+      toast('Envie ao menos um arquivo do edital primeiro.');
+      return;
+    }
+    edState.items = [];
+    extractItemsFromAllFiles();
+    saveLocal();
+    renderItemsTable();
+    toast(edState.items.length
+      ? `${edState.items.length} item(ns) extraído(s) dos arquivos!`
+      : 'Nenhum item em formato padrão detectado. Use "Colar Tabela do Edital" ou "+ Adicionar Linha".');
+  }
+
+  function togglePasteItemsBox(forceState) {
+    const box = document.getElementById('edital-paste-items-box');
+    if (!box) return;
+    if (forceState === true) box.classList.remove('hidden');
+    else if (forceState === false) box.classList.add('hidden');
+    else box.classList.toggle('hidden');
+  }
+
+  function parsePastedItems(mode) {
+    const raw = (document.getElementById('edital-paste-items-input')?.value || '').trim();
+    if (!raw) {
+      toast('Cole o texto ou tabela de itens no campo acima primeiro.');
+      return;
+    }
+    const parsed = [];
+    const seen = new Set();
+    const pushItem = (numero, quant, unid, descricao, obs, origem) => {
+      const cleanDesc = String(descricao || '').replace(/\s+/g, ' ').trim();
+      if (cleanDesc.length < 3) return;
+      const key = `${numero}|${cleanDesc.slice(0, 60).toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      parsed.push({
+        id: genId(),
+        numero: String(numero || (parsed.length + 1)).trim(),
+        quant: Number(quant) > 0 ? Number(quant) : 1,
+        unid: String(unid || 'UN').trim().toUpperCase().slice(0, 12),
+        descricao: cleanDesc,
+        obs: String(obs || '').trim(),
+        origem: origem || 'Colado'
+      });
+    };
+
+    // Se tiver tabulação (copiado de Excel/Word/tabela), lê como matriz
+    if (raw.includes('\t')) {
+      const rows = raw.split(/\r?\n/).map(l => l.split('\t').map(c => c.trim())).filter(r => r.some(Boolean));
+      rows.forEach((r, idx) => {
+        const joined = normTxt(r.join(' '));
+        if (idx === 0 && /(desc|especif|item|quant)/.test(joined)) return;
+        const desc = r.reduce((best, cur) => cur.length > best.length ? cur : best, '');
+        const num = /^\d{1,3}$/.test(r[0]) ? r[0] : String(parsed.length + 1);
+        const qtyCell = r.find((c, i) => i > 0 && /^\d+(?:[.,]\d+)?$/.test(c));
+        const unCell = r.find(c => /^(un|und|unid|cx|kit|par|jg|pc|pç|pct|kg|l|m|rl)$/i.test(c));
+        pushItem(num, qtyCell ? parseFloat(qtyCell.replace(',', '.')) : 1, unCell || 'UN', desc, '', 'Colado');
+      });
+    } else {
+      extractItemsFromTextLines(raw, 'Colado', pushItem);
+      // Fallback: se não bateu regex, cada linha vira 1 item
+      if (!parsed.length) {
+        raw.split(/\r?\n/).map(l => l.trim()).filter(l => l.length >= 4).forEach((l, idx) => {
+          pushItem(String(idx + 1), 1, 'UN', l, '', 'Colado');
+        });
+      }
+    }
+
+    if (!parsed.length) {
+      toast('Nenhum item válido encontrado no texto colado.');
+      return;
+    }
+    if (mode === 'replace') edState.items = parsed;
+    else edState.items = edState.items.concat(parsed);
+
+    saveLocal();
+    renderItemsTable();
+    document.getElementById('edital-paste-items-input').value = '';
+    togglePasteItemsBox(false);
+    toast(`${parsed.length} item(ns) adicionado(s) à tabela!`);
+  }
+
+  function reanalyzeAll() {
+    extractBidMetadata();
+    extractItemsFromAllFiles();
+    saveLocal();
+    renderAll();
+  }
+
+  // ==================== BUSCA POR PALAVRAS-CHAVE NO EDITAL ====================
+  const KEYWORD_SYNONYMS = {
+    'atestado de capacidade': ['atestado de capacidade', 'capacidade tecnica', 'qualificacao tecnica'],
+    'regionalidade': ['regionalidade', 'regional', 'exclusiv', 'sediadas local', 'ambito local'],
+    'entrega': ['prazo de entrega', 'local de entrega', 'entrega'],
+    'numero do edital': ['edital n', 'pregao eletronico', 'pregao n', 'dispensa n'],
+    'órgão': ['prefeitura', 'municipio de', 'orgao licitante', 'secretaria', 'camara municipal'],
+    'amostra': ['amostra', 'catalogo', 'folder', 'prospecto'],
+    'garantia': ['garantia', 'assistencia tecnica']
+  };
+
+  function quickSearch(term) {
+    showView('busca');
+    const inp = document.getElementById('edital-keyword-input');
+    if (inp) inp.value = term;
+    runKeywordSearch();
+  }
+
+  function runKeywordSearch() {
+    const rawQuery = (document.getElementById('edital-keyword-input')?.value || '').trim();
+    const box = document.getElementById('edital-search-results');
+    const countEl = document.getElementById('edital-search-count');
+    if (!box) return;
+
+    if (!edState.files.length) {
+      if (countEl) countEl.textContent = '0 ocorrência(s)';
+      box.innerHTML = '<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-500">Envie ao menos um arquivo do edital acima para pesquisar.</div>';
+      return;
+    }
+    if (!rawQuery) {
+      if (countEl) countEl.textContent = '0 ocorrência(s)';
+      box.innerHTML = '<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-400">Digite uma palavra-chave ou clique em um atalho rápido acima.</div>';
+      return;
+    }
+
+    const qNorm = normTxt(rawQuery);
+    const terms = KEYWORD_SYNONYMS[qNorm] || [qNorm];
+    const results = [];
+
+    edState.files.forEach(file => {
+      const text = file.text || '';
+      const normText = normTxt(text);
+      const foundPositions = [];
+
+      terms.forEach(term => {
+        if (!term) return;
+        let idx = 0;
+        while ((idx = normText.indexOf(term, idx)) !== -1) {
+          foundPositions.push({ start: idx, len: term.length });
+          idx += term.length;
+          if (foundPositions.length >= 60) break;
+        }
+      });
+
+      // Ordena e remove sobreposições muito próximas
+      foundPositions.sort((a, b) => a.start - b.start);
+      const dedup = [];
+      foundPositions.forEach(pos => {
+        if (!dedup.length || pos.start - dedup[dedup.length - 1].start > 90) {
+          dedup.push(pos);
+        }
+      });
+
+      dedup.slice(0, 25).forEach(pos => {
+        const s = Math.max(0, pos.start - 110);
+        const e = Math.min(text.length, pos.start + pos.len + 170);
+        const before = esc(text.slice(s, pos.start));
+        const hit = esc(text.slice(pos.start, pos.start + pos.len));
+        const after = esc(text.slice(pos.start + pos.len, e));
+        const plain = text.slice(s, e).replace(/\s+/g, ' ').trim();
+        results.push({
+          fileName: file.name,
+          ext: file.ext,
+          html: `${s > 0 ? '…' : ''}${before}<mark class="ed-hit-mark">${hit}</mark>${after}${e < text.length ? '…' : ''}`,
+          plain
+        });
+      });
+    });
+
+    if (countEl) countEl.textContent = `${results.length} ocorrência(s) em ${edState.files.length} arquivo(s)`;
+    if (!results.length) {
+      box.innerHTML = `<div class="bg-white rounded-2xl border border-slate-200 p-8 text-center text-xs text-slate-500">Nenhuma ocorrência encontrada para <strong>"${esc(rawQuery)}"</strong> nos arquivos enviados.</div>`;
+      return;
+    }
+
+    box.innerHTML = results.map((r, idx) => `
+      <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm space-y-1.5">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="px-2 py-0.5 rounded bg-slate-800 text-white text-[10px] font-extrabold shrink-0">${esc(r.ext)}</span>
+            <span class="text-xs font-bold text-[#1e2f53] truncate">${esc(r.fileName)}</span>
+          </div>
+          <button type="button" onclick="EditalModule.copySnippet(${idx})" class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold shrink-0 transition">📋 Copiar trecho</button>
+        </div>
+        <p class="text-xs text-slate-700 leading-relaxed">${r.html}</p>
+      </div>
+    `).join('');
+    window._edLastSearchResults = results;
+  }
+
+  function copySnippet(idx) {
+    const r = (window._edLastSearchResults || [])[idx];
+    if (!r) return;
+    navigator.clipboard?.writeText(r.plain).then(() => toast('Trecho copiado!'));
+  }
+
+  // ==================== ITENS & GERAÇÃO DE EXCEL (.XLSX) ====================
+  function renderItemsTable() {
+    const tbody = document.getElementById('edital-items-tbody');
+    const empty = document.getElementById('edital-items-empty');
+    if (!tbody || !empty) return;
+    updateBadges();
+
+    if (!edState.items.length) {
+      tbody.innerHTML = '';
+      empty.classList.remove('hidden');
+      return;
+    }
+    empty.classList.add('hidden');
+    tbody.innerHTML = edState.items.map((it, idx) => {
+      const safeNum = esc(it && it.numero !== undefined ? it.numero : String(idx + 1));
+      const safeQty = (it && Number.isFinite(Number(it.quant)) && Number(it.quant) >= 0) ? Number(it.quant) : 1;
+      const safeUnid = esc((it && it.unid) ? it.unid : 'UN');
+      const safeDesc = esc((it && it.descricao) ? it.descricao : '');
+      const safeObs = esc((it && it.obs) ? it.obs : '');
+      const safeOrig = (it && it.origem) ? `<div class="text-[10px] text-slate-400 mt-0.5">Origem: ${esc(it.origem)}</div>` : '';
+      return `
+      <tr class="hover:bg-slate-50/70 align-top">
+        <td class="p-2.5 text-center">
+          <input type="text" value="${safeNum}" oninput="EditalModule.updateItem(${idx},'numero',this.value)" class="w-12 text-center rounded-lg border border-slate-300 px-1.5 py-1 text-xs font-bold" />
+        </td>
+        <td class="p-2.5 text-center">
+          <input type="number" step="any" min="0" value="${safeQty}" oninput="EditalModule.updateItem(${idx},'quant',this.value)" class="w-16 text-center rounded-lg border border-slate-300 px-1.5 py-1 text-xs font-semibold" />
+        </td>
+        <td class="p-2.5 text-center">
+          <input type="text" value="${safeUnid}" oninput="EditalModule.updateItem(${idx},'unid',this.value)" class="w-14 text-center rounded-lg border border-slate-300 px-1.5 py-1 text-xs uppercase" />
+        </td>
+        <td class="p-2.5">
+          <textarea rows="2" oninput="EditalModule.updateItem(${idx},'descricao',this.value)" class="w-full rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs leading-relaxed">${safeDesc}</textarea>
+          ${safeOrig}
+        </td>
+        <td class="p-2.5">
+          <input type="text" value="${safeObs}" placeholder="Observações..." oninput="EditalModule.updateItem(${idx},'obs',this.value)" class="w-full rounded-lg border border-slate-300 px-2 py-1.5 text-xs" />
+        </td>
+        <td class="p-2.5 text-right">
+          <div class="flex flex-wrap justify-end gap-1">
+            <button type="button" onclick="EditalModule.copyItemDesc(${idx})" title="Copiar descrição completa" class="px-2 py-1 rounded-lg bg-sky-50 hover:bg-sky-100 border border-sky-200 text-[#1e2f53] text-[11px] font-bold transition">📋 Copiar</button>
+            <button type="button" onclick="EditalModule.searchItemInCatalog(${idx})" title="Pesquisar este item em Buscar Produtos" class="px-2 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition">🔎 Catálogo</button>
+            <button type="button" onclick="EditalModule.sendItemToProposta(${idx})" title="Enviar este item para a Proposta" class="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-emerald-800 text-[11px] font-bold transition">📄 Proposta</button>
+            <button type="button" onclick="EditalModule.removeItem(${idx})" title="Remover linha" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[11px] font-bold transition">✕</button>
+          </div>
+        </td>
+      </tr>`;
+    }).join('');
+  }
+
+  function addManualItem() {
+    edState.items.push({
+      id: genId(),
+      numero: String(edState.items.length + 1),
+      quant: 1,
+      unid: 'UN',
+      descricao: '',
+      obs: '',
+      origem: 'Manual'
+    });
+    saveLocal();
+    renderItemsTable();
+  }
+
+  function updateItem(idx, field, val) {
+    if (!edState.items[idx]) return;
+    edState.items[idx][field] = field === 'quant' ? (parseFloat(val) || 0) : val;
+    saveLocal();
+  }
+
+  function removeItem(idx) {
+    edState.items.splice(idx, 1);
+    saveLocal();
+    renderItemsTable();
+  }
+
+  function copyItemDesc(idx) {
+    const it = edState.items[idx];
+    if (!it || !it.descricao) return;
+    navigator.clipboard?.writeText(it.descricao).then(() => toast(`Descrição do Item ${it.numero} copiada!`));
+  }
+
+  function searchItemInCatalog(idx) {
+    const it = edState.items[idx];
+    if (!it || !it.descricao) return;
+    if (window.PlatformHub) window.PlatformHub.switchModule('produtos', 'search');
+    if (window.ProdutosModule && window.ProdutosModule.searchFromExternal) {
+      window.ProdutosModule.searchFromExternal(it.descricao);
+    }
+  }
+
+  function sendItemToProposta(idx) {
+    const it = edState.items[idx];
+    if (!it) return;
+    if (window.PlatformHub) {
+      window.PlatformHub.sendProdutosToProposta([{
+        name: it.descricao,
+        fullSpec: it.descricao,
+        specs: '',
+        brand: '',
+        code: '',
+        unit: it.unid || 'UN',
+        qty: Number(it.quant) || 1,
+        price: 0
+      }], 'append');
+    }
+  }
+
+  function sendAllItemsToProposta() {
+    if (!edState.items.length) {
+      toast('Nenhum item extraído para enviar.');
+      return;
+    }
+    const payload = edState.items.map(it => ({
+      name: it.descricao,
+      fullSpec: it.descricao,
+      specs: '',
+      brand: '',
+      code: '',
+      unit: it.unid || 'UN',
+      qty: Number(it.quant) || 1,
+      price: 0
+    }));
+    if (window.PlatformHub) {
+      window.PlatformHub.sendProdutosToProposta(payload, 'ask');
+    }
+  }
+
+  function sendSummaryToProposta() {
+    if (!window.PropostaBridge) return;
+    if (window.CheckpointManager) {
+      window.CheckpointManager.capture('proposta', 'Antes de importar dados da Pesquisa de Edital');
+    }
+    const st = window.PropostaBridge.getState();
+    const ex = edState.extracted;
+    if (ex.orgao) st.bid.orgao = ex.orgao;
+    if (ex.numero) st.bid.numero = ex.numero;
+    if (ex.processo) st.bid.processo = ex.processo;
+    if (ex.sessao) st.bid.sessao = ex.sessao;
+    if (ex.entrega) st.bid.prazoEntrega = ex.entrega;
+    if (ex.validade) st.bid.validade = ex.validade;
+    if (ex.garantia) st.bid.garantia = ex.garantia;
+    if (ex.objeto) st.bid.objeto = ex.objeto;
+    window.PropostaBridge.saveToStorage();
+    window.PropostaBridge.populateFormFromState();
+    if (window.PlatformHub) window.PlatformHub.switchModule('proposta', 'licitacao');
+    window.PropostaBridge.showToast('Dados principais do Edital enviados para a Proposta!');
+  }
+
+  function exportItemsExcel() {
+    if (typeof XLSX === 'undefined') {
+      toast('Biblioteca Excel (SheetJS) indisponível offline.');
+      return;
+    }
+    const rows = edState.items.length
+      ? edState.items.map(it => ({
+          'Item': it.numero,
+          'Quantidade': Number(it.quant) || 1,
+          'Unidade': it.unid || 'UN',
+          'Descrição Completa do Edital': it.descricao || '',
+          'Observações': it.obs || (it.origem ? `Origem: ${it.origem}` : '')
+        }))
+      : [{
+          'Item': 1,
+          'Quantidade': 1,
+          'Unidade': 'UN',
+          'Descrição Completa do Edital': edState.extracted.objeto || 'Sem itens extraídos automaticamente',
+          'Observações': ''
+        }];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws['!cols'] = [{ wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 78 }, { wch: 28 }];
+    XLSX.utils.book_append_sheet(wb, ws, 'Itens do Edital');
+
+    const ex = edState.extracted;
+    const summaryRows = [
+      ['Campo', 'Informação Extraída'],
+      ['Órgão Licitante', ex.orgao || ''],
+      ['Nº do Pregão / Edital', ex.numero || ''],
+      ['Nº do Processo', ex.processo || ''],
+      ['Dia e Horário da Sessão', ex.sessao || ''],
+      ['Prazo de Entrega', ex.entrega || ''],
+      ['Atestado de Capacidade Técnica', `${ex.atestadoFlag} — ${ex.atestadoDetalhes || ''}`],
+      ['Validade da Proposta', ex.validade || ''],
+      ['Garantia', ex.garantia || ''],
+      ['Amostras / Catálogo', ex.amostras || ''],
+      ['Regionalidade / Exclusividade', ex.regionalidade || ''],
+      ['Objeto', ex.objeto || '']
+    ];
+    const wsInfo = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsInfo['!cols'] = [{ wch: 30 }, { wch: 80 }];
+    XLSX.utils.book_append_sheet(wb, wsInfo, 'Resumo do Edital');
+
+    const slug = (ex.orgao || ex.numero || 'Edital').replace(/[^a-zA-Z0-9À-ÿ]+/g, '_').slice(0, 32);
+    XLSX.writeFile(wb, `Itens_Edital_${slug}.xlsx`);
+    toast('Planilha Excel (.xlsx) dos itens do edital baixada!');
+  }
+
+  // ==================== RENDERIZAÇÃO & PERSISTÊNCIA ====================
+  function onFieldEdit() {
+    const ex = edState.extracted;
+    ex.orgao = document.getElementById('ed-field-orgao')?.value || '';
+    ex.numero = document.getElementById('ed-field-numero')?.value || '';
+    ex.processo = document.getElementById('ed-field-processo')?.value || '';
+    ex.sessao = document.getElementById('ed-field-sessao')?.value || '';
+    ex.entrega = document.getElementById('ed-field-entrega')?.value || '';
+    ex.atestadoFlag = document.getElementById('ed-field-atestado-flag')?.value || 'Verificar';
+    ex.atestadoDetalhes = document.getElementById('ed-field-atestado-det')?.value || '';
+    ex.validade = document.getElementById('ed-field-validade')?.value || '';
+    ex.garantia = document.getElementById('ed-field-garantia')?.value || '';
+    ex.amostras = document.getElementById('ed-field-amostras')?.value || '';
+    ex.regionalidade = document.getElementById('ed-field-regionalidade')?.value || '';
+    ex.objeto = document.getElementById('ed-field-objeto')?.value || '';
+    updateAtestadoPill();
+    saveLocal();
+  }
+
+  function updateAtestadoPill() {
+    const pill = document.getElementById('ed-atestado-pill');
+    if (!pill) return;
+    const f = edState.extracted.atestadoFlag;
+    if (f === 'Sim') {
+      pill.textContent = 'EXIGE ATESTADO';
+      pill.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300';
+    } else if (f === 'Não') {
+      pill.textContent = 'Não exige';
+      pill.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-emerald-100 text-emerald-800';
+    } else {
+      pill.textContent = 'Verificar';
+      pill.className = 'px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-slate-100 text-slate-600';
+    }
+  }
+
+  function renderFilesList() {
+    const box = document.getElementById('edital-files-list');
+    if (!box) return;
+    if (!edState.files.length) {
+      box.innerHTML = '';
+      return;
+    }
+    box.innerHTML = edState.files.map(f => `
+      <div class="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 flex items-center justify-between gap-2">
+        <div class="min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="px-1.5 py-0.5 rounded bg-[#1e2f53] text-white text-[9.5px] font-extrabold shrink-0">${esc(f.ext)}</span>
+            <span class="text-xs font-bold text-slate-800 truncate" title="${esc(f.name)}">${esc(f.name)}</span>
+          </div>
+          <div class="text-[10.5px] text-slate-500 mt-0.5">${esc(f.pagesOrSheets)} • ${(f.size / 1024).toFixed(0)} KB • ${((f.text || '').length / 1000).toFixed(1)}k chars</div>
+        </div>
+        <div class="flex items-center gap-1 shrink-0">
+          <button type="button" onclick="EditalModule.openTextModal('${f.id}')" class="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-[10.5px] font-bold text-slate-700">Ver texto</button>
+          <button type="button" onclick="EditalModule.removeFile('${f.id}')" class="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-[10.5px] font-bold">✕</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function openTextModal(fileId) {
+    const f = edState.files.find(x => x.id === fileId);
+    if (!f) return;
+    document.getElementById('edital-text-modal-title').textContent = f.name;
+    document.getElementById('edital-text-modal-meta').textContent = `${f.ext} • ${f.pagesOrSheets} • ${(f.text || '').length} caracteres`;
+    document.getElementById('edital-text-modal-body').textContent = f.text || '(Sem texto extraído)';
+    document.getElementById('edital-text-modal').classList.remove('hidden');
+  }
+
+  function closeTextModal() {
+    document.getElementById('edital-text-modal')?.classList.add('hidden');
+  }
+
+  function renderFields() {
+    const ex = edState.extracted;
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+    setVal('ed-field-orgao', ex.orgao);
+    setVal('ed-field-numero', ex.numero);
+    setVal('ed-field-processo', ex.processo);
+    setVal('ed-field-sessao', ex.sessao);
+    setVal('ed-field-entrega', ex.entrega);
+    setVal('ed-field-atestado-flag', ex.atestadoFlag || 'Verificar');
+    setVal('ed-field-atestado-det', ex.atestadoDetalhes);
+    setVal('ed-field-validade', ex.validade);
+    setVal('ed-field-garantia', ex.garantia);
+    setVal('ed-field-amostras', ex.amostras);
+    setVal('ed-field-regionalidade', ex.regionalidade);
+    setVal('ed-field-objeto', ex.objeto);
+    updateAtestadoPill();
+
+    const hBox = document.getElementById('edital-highlights-box');
+    const hList = document.getElementById('edital-highlights-list');
+    if (hBox && hList) {
+      if (edState.highlights.length) {
+        hBox.classList.remove('hidden');
+        hList.innerHTML = edState.highlights.map(h => `
+          <div class="p-2.5 rounded-lg bg-slate-50 border border-slate-200">
+            <span class="font-extrabold text-[#1e2f53]">${esc(h.label)}:</span>
+            <span class="text-slate-700">${esc(h.text)}</span>
+          </div>
+        `).join('');
+      } else {
+        hBox.classList.add('hidden');
+      }
+    }
+  }
+
+  function saveCurrentAnalysis() {
+    const ex = edState.extracted;
+    const defaultTitle = `${ex.orgao || 'Edital'} ${ex.numero ? '— ' + ex.numero : ''}`.trim() || `Análise ${new Date().toLocaleDateString('pt-BR')}`;
+    const title = prompt('Nome para salvar esta análise de edital:', defaultTitle);
+    if (title === null) return;
+
+    const record = {
+      id: genId(),
+      title: title.trim() || defaultTitle,
+      savedAt: new Date().toLocaleString('pt-BR'),
+      updatedAtMs: Date.now(),
+      fileNames: edState.files.map(f => f.name),
+      extracted: JSON.parse(JSON.stringify(ex)),
+      highlights: JSON.parse(JSON.stringify(edState.highlights)),
+      items: JSON.parse(JSON.stringify(edState.items))
+    };
+    savedAnalyses.unshift(record);
+    saveLocal();
+    updateBadges();
+    renderSavedList();
+
+    if (fbDb) {
+      fbDb.collection('brava_propostas').doc('team').collection('editais').doc(record.id)
+        .set(record)
+        .then(() => toast('Análise salva e sincronizada no Firebase!'))
+        .catch(() => toast('Análise salva localmente!'));
+    } else {
+      toast('Análise de edital salva localmente!');
+    }
+  }
+
+  function loadSavedAnalysis(id) {
+    const rec = savedAnalyses.find(x => x.id === id);
+    if (!rec) return;
+    edState.extracted = { ...edState.extracted, ...(rec.extracted || {}) };
+    edState.highlights = Array.isArray(rec.highlights) ? JSON.parse(JSON.stringify(rec.highlights)) : [];
+    edState.items = Array.isArray(rec.items) ? JSON.parse(JSON.stringify(rec.items)) : [];
+    saveLocal();
+    renderAll();
+    showView('analise');
+    toast(`Análise "${rec.title}" carregada!`);
+  }
+
+  function deleteSavedAnalysis(id) {
+    if (!confirm('Excluir esta análise de edital salva?')) return;
+    savedAnalyses = savedAnalyses.filter(x => x.id !== id);
+    saveLocal();
+    updateBadges();
+    renderSavedList();
+    if (fbDb) {
+      fbDb.collection('brava_propostas').doc('team').collection('editais').doc(id).delete().catch(() => {});
+    }
+    toast('Análise excluída.');
+  }
+
+  function renderSavedList() {
+    const box = document.getElementById('edital-saved-list');
+    if (!box) return;
+    if (!savedAnalyses.length) {
+      box.innerHTML = '<div class="bg-white rounded-2xl border border-dashed border-slate-300 p-8 text-center text-xs text-slate-400">Nenhuma análise de edital salva ainda.</div>';
+      return;
+    }
+    box.innerHTML = savedAnalyses.map(rec => `
+      <div class="bg-white rounded-xl border border-slate-200 p-3.5 shadow-sm flex flex-wrap items-center justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-xs font-extrabold text-slate-900 truncate">${esc(rec.title)}</div>
+          <div class="text-[11px] text-slate-500 mt-0.5">Salvo em ${esc(rec.savedAt)} • ${(rec.items || []).length} item(ns) • Arquivos: ${esc((rec.fileNames || []).join(', ') || '—')}</div>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button type="button" onclick="EditalModule.loadSavedAnalysis('${rec.id}')" class="px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold">Carregar</button>
+          <button type="button" onclick="EditalModule.deleteSavedAnalysis('${rec.id}')" class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold">Excluir</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderAll() {
+    renderFilesList();
+    renderFields();
+    renderItemsTable();
+    renderSavedList();
+    updateBadges();
+  }
+
+  async function initFirebaseSync(authApp, user) {
+    if (!authApp || typeof firebase === 'undefined') return;
+    try {
+      fbDb = firebase.firestore(authApp);
+      fbUser = user || null;
+      const snap = await fbDb.collection('brava_propostas').doc('team').collection('editais')
+        .orderBy('updatedAtMs', 'desc').limit(30).get();
+      const cloudList = [];
+      snap.forEach(d => { if (d.data()) cloudList.push({ ...d.data(), id: d.data().id || d.id }); });
+      if (cloudList.length) {
+        const mergedMap = new Map();
+        cloudList.forEach(x => mergedMap.set(x.id, x));
+        savedAnalyses.forEach(x => { if (!mergedMap.has(x.id)) mergedMap.set(x.id, x); });
+        savedAnalyses = Array.from(mergedMap.values()).sort((a, b) => (b.updatedAtMs || 0) - (a.updatedAtMs || 0));
+        saveLocal();
+        updateBadges();
+        if (activeSubView === 'historico') renderSavedList();
+      }
+    } catch (err) {
+      console.warn('EditalModule Firebase sync aviso:', err);
+    }
+  }
+
+  window.addEventListener('DOMContentLoaded', () => {
+    loadLocal();
+    renderAll();
+  });
+
+  return {
+    showView,
+    handleDragOver,
+    handleDragLeave,
+    handleDrop,
+    handleFileSelect,
+    removeFile,
+    clearAll,
+    reanalyzeAll,
+    reextractItemsOnly,
+    togglePasteItemsBox,
+    parsePastedItems,
+    onFieldEdit,
+    quickSearch,
+    runKeywordSearch,
+    copySnippet,
+    addManualItem,
+    updateItem,
+    removeItem,
+    copyItemDesc,
+    searchItemInCatalog,
+    sendItemToProposta,
+    sendAllItemsToProposta,
+    sendSummaryToProposta,
+    exportItemsExcel,
+    openTextModal,
+    closeTextModal,
+    saveCurrentAnalysis,
+    loadSavedAnalysis,
+    deleteSavedAnalysis,
+    initFirebaseSync,
+    captureSnapshot: () => ({
+      extracted: JSON.parse(JSON.stringify(edState.extracted)),
+      highlights: JSON.parse(JSON.stringify(edState.highlights)),
+      items: JSON.parse(JSON.stringify(edState.items))
+    }),
+    restoreSnapshot: (snap) => {
+      if (!snap) return false;
+      if (snap.extracted) edState.extracted = { ...edState.extracted, ...snap.extracted };
+      if (Array.isArray(snap.highlights)) edState.highlights = JSON.parse(JSON.stringify(snap.highlights));
+      if (Array.isArray(snap.items)) edState.items = JSON.parse(JSON.stringify(snap.items));
+      saveLocal();
+      renderAll();
+      return true;
+    }
+  };
+})();
