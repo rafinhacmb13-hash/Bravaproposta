@@ -1,6 +1,4 @@
-/* =====================================================================
-   OTIMIZAÇÕES DE FLUIDEZ E RENDERIZAÇÃO (GPU / CONTAINMENT / SCROLL)
-   ===================================================================== */
+
 .proposal-sheet {
   will-change: transform;
   backface-visibility: hidden;
@@ -55,16 +53,13 @@ body {
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     }
 
-    /* Barra de rolagem limpa */
+    
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
 
-    /* =====================================================================
-       ESTILOS ISOLADOS DO DOCUMENTO A4 (Tela, Impressão, PDF e Word)
-       Identidade Visual Brava Esportes: Azul-Marinho #1e2f53 | Azul-Claro #1fa6da
-       ===================================================================== */
+    
     .a4-stage {
       background: #cbd5e1;
       padding: 24px 16px;
@@ -209,7 +204,7 @@ body {
       break-inside: avoid;
     }
 
-    /* Tema Next Esportes no Documento A4 (Grafite #111827 + Verde #16a34a) */
+    
     .proposal-sheet.theme-next table.doc-header-table {
       border-bottom-color: #111827;
     }
@@ -236,7 +231,7 @@ body {
       border-left-color: #16a34a;
     }
 
-    /* Densidade: Compacto (Padrão — menos páginas e visual enxuto) */
+    
     .proposal-sheet.compact-doc {
       padding: 9.5mm 11mm 10.5mm 11mm;
       font-size: 9pt;
@@ -277,7 +272,7 @@ body {
       margin-top: 14px;
     }
 
-    /* Densidade: Ultra Compacto (máximo aproveitamento de folha A4) */
+    
     .proposal-sheet.ultra-doc {
       padding: 7.5mm 9mm 8mm 9mm;
       font-size: 8.3pt;
@@ -336,7 +331,7 @@ body {
       line-height: 1.26;
     }
 
-    /* Linha guia visual de fim de página A4 (somente na pré-visualização em tela) */
+    
     .a4-page-guide {
       position: absolute;
       left: 0;
@@ -366,13 +361,13 @@ body {
       padding: 0;
     }
 
-    /* Zona de arrastar e soltar planilha */
+    
     .dropzone-active {
       border-color: #1fa6da !important;
       background-color: #f0f9ff !important;
     }
 
-    /* Impressão nativa do navegador (PDF vetorial selecionável) */
+    
     @media print {
       @page {
         size: A4 portrait;
@@ -383,7 +378,7 @@ body {
         overflow: visible !important;
         background: #ffffff !important;
       }
-      header, footer, #auth-gate, #unified-sidebar, #mobile-shell-backdrop, #mobile-module-bar, #module-produtos, #module-agenda, #module-edital, #checkpointModal, #editor-panel, #toast, #pdf-settings-drawer, .a4-page-guide, #preview-panel > div:first-child {
+      header, footer, #auth-gate, #unified-sidebar, #mobile-shell-backdrop, #mobile-module-bar, #module-produtos, #module-agenda, #module-edital, #module-documentos, #module-effecti, #effecti-chat-overlay, #agenda-alarm-overlay, #checkpointModal, #editor-panel, #toast, #pdf-settings-drawer, .a4-page-guide, #preview-panel > div:first-child {
         display: none !important;
       }
       #preview-panel {
@@ -408,11 +403,7 @@ body {
     }
   
 
-
-    /* =====================================================================
-       SHELL CORPORATIVO UNIFICADO — REFERÊNCIA VISUAL: PROPOSTA DE LICITAÇÃO
-       Brava Esportes: #1e2f53 / #1fa6da  |  Next Esportes: #0f172a / #22c55e
-       ===================================================================== */
+    
     :root {
       --shell-bg: #1e2f53;
       --shell-bg-deep: #15223d;
@@ -542,7 +533,7 @@ body {
         display: revert !important;
       }
     }
-    /* Harmonização do header dos módulos secundários com a identidade Brava/Next */
+    
     #module-agenda .workspace-topbar {
       background: #ffffff;
       border-bottom: 2px solid var(--shell-accent);
@@ -551,9 +542,7 @@ body {
       border-bottom: 2px solid var(--shell-accent);
     }
 
-
-
-    /* ==================== TELA DE LOGIN CORPORATIVA (FIREBASE AUTH) ==================== */
+    
     #auth-gate {
       position: fixed;
       inset: 0;
@@ -597,7 +586,7 @@ body {
       padding-right: 4px;
     }
 
-    /* ==================== CSS ISOLADO: MÓDULO AGENDA ==================== */
+    
 #module-agenda { --ink: #17243b;
       --muted: #718096;
       --line: #e5eaf1;
@@ -970,7 +959,7 @@ body {
 #module-agenda #kpiDashboard #kpiMonthTotal, #module-agenda #kpiDashboard #kpiTodayTotal, #module-agenda #kpiDashboard #kpiOpenTotal { font-size:22px !important; }
 }
 
-    /* ==================== CSS ISOLADO: MÓDULO PRODUTOS ==================== */
+    
 #module-produtos .sidebar-link { display:flex;align-items:center;gap:.7rem;padding:.6rem .85rem;border-radius:.75rem;font-weight:600;font-size:.82rem;color:#475569;transition:all .15s ease }
 #module-produtos .sidebar-link:hover { background:#F1F5F9;color:#0F172A }
 #module-produtos .sidebar-link.active { background:#0F172A;color:#fff;box-shadow:0 4px 14px rgba(15,23,42,.15) }
@@ -1038,7 +1027,7 @@ body {
 #module-produtos .sync-short { display:inline }
 }
 
-    /* ==================== CSS COMPLEMENTAR: MÓDULO EDITAL, BALÃO & CHECKPOINTS ==================== */
+    
     #module-edital .edital-topbar {
       border-bottom: 2px solid var(--shell-accent);
     }
@@ -1081,7 +1070,7 @@ body {
       border-color: var(--shell-accent) !important;
       background: rgba(31, 166, 218, 0.08) !important;
     }
-    /* Balão interativo de Especificação Oficial no card de Produtos */
+    
     #module-produtos .spec-balloon-btn {
       display: inline-flex;
       align-items: center;
@@ -1134,18 +1123,9 @@ body {
       border-bottom-color: #22c55e !important;
     }
 
-/* Acordeão de submenus na barra lateral */
 #unified-sidebar .sb-main-btn .sb-chevron { transform: rotate(-90deg); }
 #unified-sidebar .sb-main-btn.is-open .sb-chevron { transform: rotate(0deg); }
 
-/* =====================================================================
-   NOVA IDENTIDADE VISUAL — CENTRAL DE LICITAÇÕES
-   Paleta oficial extraída da marca:
-   Azul-Marinho Profundo: #0b1630 / #0f1d3d / #162a54
-   Dourado Institucional: #f0b429 / #ffe08a / #b8780a
-   Azul-Celeste:          #1fa6da
-   Verde-Progresso:       #7ed957
-   ===================================================================== */
 :root {
   --brand-navy: #0b1630;
   --brand-navy-mid: #13254a;
@@ -1168,12 +1148,10 @@ body.shell-theme-next {
   --shell-border: rgba(126, 217, 87, 0.22);
 }
 
-/* Barra assinatura tricolor da marca (Dourado + Azul-Celeste + Verde) */
 .brand-tricolor-bar {
   background: linear-gradient(90deg, #f0b429 0%, #f0b429 58%, #1fa6da 58%, #1fa6da 84%, #7ed957 84%, #7ed957 100%);
 }
 
-/* Tela de Login com atmosfera premium da marca */
 #auth-gate {
   background:
     radial-gradient(circle at 18% 18%, rgba(240, 180, 41, 0.18), transparent 40%),
@@ -1193,7 +1171,6 @@ body.shell-theme-next {
   background: linear-gradient(135deg, #162a54 0%, #24427d 100%) !important;
 }
 
-/* Barra lateral unificada com acento dourado/celeste */
 #unified-sidebar {
   background: linear-gradient(180deg, var(--shell-bg) 0%, var(--shell-bg-deep) 100%) !important;
   border-right: 1px solid rgba(240, 180, 41, 0.16) !important;
@@ -1217,7 +1194,6 @@ body.shell-theme-next {
   color: #ffe08a !important;
 }
 
-/* Cabeçalhos dos módulos harmonizados com a nova identidade */
 #app-header {
   background: linear-gradient(90deg, #0b1630 0%, #132650 100%) !important;
   border-bottom: 2px solid #f0b429 !important;
@@ -1237,11 +1213,384 @@ body.shell-theme-next #module-edital .edital-topbar {
   border-bottom: 2px solid #7ed957 !important;
 }
 
-/* Botões principais e modais harmonizados */
 #checkpointModal .bg-\[\#1e2f53\],
 #auth-access-modal .bg-\[\#1e2f53\],
 #auth-changepass-modal .bg-\[\#1e2f53\],
 #specBalloonHeader {
   background: linear-gradient(90deg, #0b1630 0%, #162b56 100%) !important;
   border-bottom: 2px solid #f0b429 !important;
+}
+
+.docs-topbar {
+  border-bottom: 1px solid #e2e8f0;
+}
+.docs-company-pill.is-active-brava {
+  background: #1e2f53;
+  color: #ffffff;
+  border-color: #1e2f53;
+  box-shadow: 0 2px 6px rgba(30, 47, 83, 0.22);
+}
+.docs-company-pill.is-active-next {
+  background: #0f172a;
+  color: #4ade80;
+  border-color: #16a34a;
+  box-shadow: 0 2px 6px rgba(22, 163, 74, 0.22);
+}
+.docs-company-pill.is-active-all {
+  background: #334155;
+  color: #ffffff;
+  border-color: #334155;
+}
+.docs-status-tab.is-active {
+  background: #1e2f53;
+  color: #ffffff;
+  border-color: #1e2f53;
+}
+
+#module-agenda #kpiDashboard > div {
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid #e2e8f0 !important;
+  border-radius: 18px !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.05) !important;
+}
+#module-agenda #kpiDashboard > div:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(15, 23, 42, 0.10) !important;
+  border-color: #cbd5e1 !important;
+}
+#module-agenda #view-list,
+#module-agenda #view-calendar,
+#module-agenda #view-alerts > div > div {
+  border-radius: 18px !important;
+  border-color: #e2e8f0 !important;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.045) !important;
+}
+
+body:not(.is-admin-user) [data-admin-only="true"] {
+  display: none !important;
+}
+
+#module-agenda #kpiDashboard {
+  display: grid;
+  gap: 16px !important;
+}
+
+#module-agenda #kpiDashboard > div {
+  background: #ffffff !important;
+  border: 1px solid #dbe3ee !important;
+  border-radius: 16px !important;
+  padding: 20px 22px !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.045) !important;
+  position: relative;
+}
+
+#module-agenda #kpiDashboard > div::before {
+  height: 4px !important;
+  left: 0 !important;
+  right: 0 !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+
+#module-agenda #view-list table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+#module-agenda #view-list thead th {
+  background: #f8fafc !important;
+  color: #475569 !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.08em !important;
+  border-bottom: 2px solid #e2e8f0 !important;
+}
+
+#module-agenda #view-list tbody tr.ag-exec-row {
+  background: #ffffff;
+  transition: background-color 0.14s ease, box-shadow 0.14s ease;
+}
+
+#module-agenda #view-list tbody tr.ag-exec-row:hover {
+  background: #f8fbff !important;
+  box-shadow: inset 0 0 0 1px rgba(56, 103, 232, 0.12);
+}
+
+#module-agenda #view-list tbody tr.ag-exec-row td {
+  padding-top: 14px !important;
+  padding-bottom: 14px !important;
+  border-bottom: 1px solid #eef2f7 !important;
+  vertical-align: top;
+}
+
+#module-agenda .ag-date-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 112px;
+}
+
+#module-agenda .ag-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  border-radius: 6px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  width: fit-content;
+}
+
+#module-agenda .ag-mark-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.3;
+  border: 1px solid #e2e8f0;
+  transition: all 0.14s ease;
+}
+
+@keyframes agAlarmSlideIn {
+  from { opacity: 0; transform: translateX(24px) scale(0.97); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+@keyframes agAlarmPulseRing {
+  0%, 100% { box-shadow: 0 18px 44px rgba(15, 23, 42, 0.28), 0 0 0 0 rgba(244, 63, 94, 0.45); }
+  50%      { box-shadow: 0 18px 44px rgba(15, 23, 42, 0.28), 0 0 0 8px rgba(244, 63, 94, 0); }
+}
+
+.ag-alarm-card {
+  pointer-events: auto;
+  animation: agAlarmSlideIn 0.24s cubic-bezier(0.22, 1, 0.36, 1);
+  border-radius: 16px;
+  overflow: hidden;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.24);
+}
+
+.ag-alarm-card.is-start-now {
+  border-color: #f43f5e;
+  animation: agAlarmSlideIn 0.24s ease-out, agAlarmPulseRing 1.8s infinite;
+}
+
+#module-documentos .docs-portal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 7.5px;
+  border-radius: 6px;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  background: #ffffff;
+  color: #1e2f53;
+  border: 1px solid #bae6fd;
+  text-decoration: none;
+  transition: all 0.14s ease;
+  box-shadow: 0 1px 1px rgba(15, 23, 42, 0.03);
+}
+
+#module-documentos .docs-hub-tab.is-selected {
+  box-shadow: 0 0 0 2px rgba(30, 47, 83, 0.25);
+  filter: brightness(0.95);
+}
+
+#module-documentos .docs-portal-chip:hover {
+  background: #1e2f53;
+  color: #ffffff;
+  border-color: #1e2f53;
+  transform: translateY(-1px);
+}
+
+#module-documentos .docs-portal-chip-green {
+  border-color: #a7f3d0;
+  color: #065f46;
+}
+
+#module-documentos .docs-portal-chip-green:hover {
+  background: #065f46;
+  color: #ffffff;
+  border-color: #065f46;
+}
+
+#module-documentos .docs-portal-chip-amber {
+  border-color: #fde68a;
+  color: #92400e;
+}
+
+#module-documentos .docs-portal-chip-amber:hover {
+  background: #b45309;
+  color: #ffffff;
+  border-color: #b45309;
+}
+
+#module-effecti .eff-topbar {
+  border-bottom: 2px solid #f0b429;
+}
+body.shell-theme-next #module-effecti .eff-topbar {
+  border-bottom-color: #7ed957;
+}
+#module-effecti .eff-tab-btn {
+  color: #475569;
+  background: transparent;
+}
+#module-effecti .eff-tab-btn:hover {
+  background: rgba(255, 255, 255, 0.8);
+  color: #0f172a;
+}
+#module-effecti .eff-tab-btn.is-active {
+  background: var(--shell-bg);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.16);
+}
+#module-effecti .eff-kpi-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+#module-effecti .eff-kpi-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+#module-effecti .eff-compact-select {
+  padding: 0 22px 0 8px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+  background-color: #f8fafc;
+  font-size: 11px;
+  font-weight: 700;
+  color: #334155;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.14s ease, background-color 0.14s ease;
+}
+#module-effecti .eff-compact-select:hover,
+#module-effecti .eff-compact-select:focus {
+  background-color: #ffffff;
+  border-color: #1fa6da;
+}
+#module-effecti .eff-date-input {
+  border: none;
+  background: transparent;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #334155;
+  padding: 1px 2px;
+  width: 102px;
+  outline: none;
+}
+#module-effecti .eff-date-capsule:focus-within {
+  border-color: #1fa6da;
+  box-shadow: 0 0 0 2px rgba(31, 166, 218, 0.15);
+}
+#module-effecti .eff-range-pill {
+  background: transparent;
+  color: #475569;
+}
+#module-effecti .eff-range-pill:hover {
+  background: rgba(255, 255, 255, 0.85);
+  color: #0f172a;
+}
+#module-effecti .eff-range-pill.is-active {
+  background: #1e2f53;
+  color: #ffffff;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.22);
+}
+#module-effecti .eff-margin-pill {
+  background: transparent;
+  color: #334155;
+}
+#module-effecti .eff-margin-pill.is-active {
+  background: #1e2f53 !important;
+  color: #ffffff !important;
+  box-shadow: 0 1px 5px rgba(30, 47, 83, 0.25);
+}
+#module-effecti .eff-chip-rail {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+#module-effecti .eff-chip-rail::-webkit-scrollbar {
+  height: 4px;
+}
+#module-effecti .eff-chip-rail::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
+#module-effecti .eff-day-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border: 1px solid #cbd5e1;
+  background: #ffffff;
+  color: #1e293b;
+  transition: all 0.14s ease;
+  cursor: pointer;
+}
+#module-effecti .eff-day-chip:hover {
+  border-color: #1fa6da;
+  background: #f0f9ff;
+}
+#module-effecti .eff-day-chip.is-selected {
+  background: #1e2f53;
+  color: #ffffff;
+  border-color: #1e2f53;
+  box-shadow: 0 1px 6px rgba(30, 47, 83, 0.24);
+}
+#module-effecti .eff-anexo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 9px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  background: #f0f9ff;
+  color: #0c4a6e;
+  border: 1px solid #bae6fd;
+  text-decoration: none;
+  transition: all 0.14s ease;
+}
+#module-effecti .eff-anexo-chip:hover {
+  background: #1e2f53;
+  color: #ffffff;
+  border-color: #1e2f53;
+}
+#module-effecti .eff-kw-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+#module-effecti .eff-day-group-hdr {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #0f1d3d 0%, #1e2f53 100%);
+  color: #ffffff;
+  border-left: 4px solid #f0b429;
+  box-shadow: 0 3px 10px rgba(15, 29, 61, 0.12);
+}
+body.shell-theme-next #module-effecti .eff-day-group-hdr {
+  border-left-color: #7ed957;
 }
